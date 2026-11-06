@@ -30,11 +30,13 @@ async function verificarUsuarioLocal(id) {
 ruta('/informacion-proyecto', () => import('./views/informacion-proyecto.js'), { staff: true });
 ruta('/programa-arranque', () => import('./views/programa-arranque.js'), { staff: true });
 ruta('/plan', () => import('./views/plan.js'), { staff: true });
-ruta('/lookahead', () => import('./views/lookahead.js'), { staff: true });
-ruta('/backlog', () => import('./views/backlog.js'), { staff: true });
+// Documentos por implementar (en blanco por ahora): Plan de gestión, Plan de construcción y Programa de cierre
+const enBlanco = titulo => () => import('./views/en-blanco.js').then(m => m.pagina(titulo));
+ruta('/lookahead', enBlanco('Plan de gestión'), { staff: true });
+ruta('/backlog', enBlanco('Plan de construcción'), { staff: true });
 ruta('/restricciones', () => import('./views/restricciones.js'), { staff: true });
-ruta('/cartera', () => import('./views/cartera.js'));
-ruta('/cartera/:id', () => import('./views/cartera.js'));
+ruta('/cartera', enBlanco('Programa de cierre'));
+ruta('/cartera/:id', enBlanco('Programa de cierre'));
 ruta('/tablero', () => import('./views/tablero.js'));
 ruta('/reunion', () => import('./views/reunion.js'), { staff: true });
 ruta('/proyectos', () => import('./views/proyectos.js'));

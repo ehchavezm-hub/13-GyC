@@ -6,6 +6,7 @@
 import { api, mensajeError } from '../data/api.js';
 import { store, on, esAdmin, esAdminEmpresa, cargarCatalogo, etiqueta, nombre, seleccionarProyecto } from '../core/store.js';
 import { panelMiembrosProyecto, proyectoAdministrado } from './admin-proyecto.js';
+import { icono } from '../ui/iconos.js';
 import * as plat from './admin-plataforma.js';
 import { ROLES, COLOR_ROL } from '../data/catalogos.js';
 import { esc } from '../core/util.js';
@@ -19,29 +20,29 @@ let dejarEscuchar = null;
 // ---------- Menú ----------
 const esPlataforma = () => !!store.usuario?.es_plataforma;
 const MENU_PLATAFORMA = [
-  { id: 'p-resumen',     ico: '📊', texto: 'Resumen' },
-  { id: 'p-empresas',    ico: '🏢', texto: 'Empresas' },
-  { id: 'p-usuarios',    ico: '👥', texto: 'Usuarios' },
-  { id: 'p-estructura',  ico: '🌳', texto: 'Estructura de todas las empresas' },
-  { id: 'p-propietarios', ico: '👑', texto: 'Propietarios' },
-  { id: 'p-auditoria',   ico: '📜', texto: 'Auditoría' },
-  { id: 'p-reportes',    ico: '📄', texto: 'Reportes' },
+  { id: 'p-resumen',     ico: icono('grafico'), texto: 'Resumen' },
+  { id: 'p-empresas',    ico: icono('edificio'), texto: 'Empresas' },
+  { id: 'p-usuarios',    ico: icono('usuarios'), texto: 'Usuarios' },
+  { id: 'p-estructura',  ico: icono('arbol'), texto: 'Estructura de todas las empresas' },
+  { id: 'p-propietarios', ico: icono('corona'), texto: 'Propietarios' },
+  { id: 'p-auditoria',   ico: icono('historial'), texto: 'Auditoría' },
+  { id: 'p-reportes',    ico: icono('impresora'), texto: 'Reportes' },
 ];
 const MENU = [
-  { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
-  { id: 'usuarios',      ico: '👥', texto: 'Usuarios de la empresa',  si: esAdminEmpresa },
+  { id: 'resumen',       ico: icono('grafico'), texto: 'Resumen',                 si: esAdmin },
+  { id: 'usuarios',      ico: icono('usuarios'), texto: 'Usuarios de la empresa',  si: esAdminEmpresa },
   { sep: true },
   // Usuarios y roles, Administrador delegado y Matriz de permisos son de los Grupos LPS: quedan en Configuración (pedido 16)
-  { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
+  { id: 'estructura',    ico: icono('arbol'), texto: 'Estructura de la empresa', si: esAdmin },
   // Portafolios y Programas van dentro de «Estructura de la empresa» (con las mismas dos pestañas de Plataforma)
   // Listas configurables, Parámetros y Calendario aplican a los Grupos LPS: quedan en Configuración (pedido a11)
   { sep: true },
-  { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
+  { id: 'auditoria',     ico: icono('historial'), texto: 'Auditoría',               si: esAdmin },
 ];
 // Nivel 3 · Proyecto: el proyecto elegido en la barra (si lo administra) o el primero que administra
 const MENU_PROYECTO = [
-  { id: 'proy-miembros', ico: '👥', texto: 'Miembros del proyecto' },
-  { id: 'proy-info',     ico: 'ℹ️', texto: 'Información del proyecto' },
+  { id: 'proy-miembros', ico: icono('usuarios'), texto: 'Miembros del proyecto' },
+  { id: 'proy-info',     ico: icono('info'), texto: 'Información del proyecto' },
 ];
 const panelPorDefecto = () => esPlataforma() ? 'p-empresas' : esAdminEmpresa() ? 'resumen' : 'proy-miembros';
 const esPanelEmpresa = id => MENU.some(m => m.id === id);
@@ -101,7 +102,7 @@ export function cerrarConsola() {
 function buildShell() {
   return `<div class="admin-inner">
     <div class="admin-topbar">
-      <span class="admin-topbar-ico">⚙</span>
+      <span class="admin-topbar-ico">${icono('engranaje')}</span>
       <span class="admin-topbar-titulo">Administración</span>
       <span class="admin-migas"></span>
       <span class="flex"></span>
