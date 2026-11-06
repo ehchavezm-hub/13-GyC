@@ -1,6 +1,6 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
+import { store, on, esGestor, esStaff, tieneAdministracion, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -8,7 +8,7 @@ import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
   { grupo: 'Administración' },
-  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
+  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: tieneAdministracion, prefijo: '/admin' },
   { grupo: 'Documentos' },
   { ruta: '/informacion-proyecto', ico: 'ℹ️', texto: 'Información del proyecto', si: esStaff },
   { ruta: '/programa-arranque', ico: '📋', texto: 'Programa de arranque', si: esStaff },
@@ -154,7 +154,12 @@ function pintarNav() {
   const navAdmin = document.querySelector('.nav-admin'), navModulos = document.querySelector('.nav-modulos');
   if (!navAdmin || !navModulos) return;
   const actual = location.hash.replace(/^#/, '').split('?')[0];
-  const pintar = lista => lista.filter(n => n.grupo || n.si()).map(n => n.grupo
+  // Un grupo sin opciones visibles para la persona no se muestra (p. ej. «Más» para un líder)
+  const conOpciones = (lista, i) => {
+    for (const x of lista.slice(i + 1)) { if (x.grupo) return false; if (x.si()) return true; }
+    return false;
+  };
+  const pintar = lista => lista.filter((n, i) => n.grupo ? conOpciones(lista, i) : n.si()).map(n => n.grupo
     ? `<div class="nav-grupo">${esc(n.grupo)}</div>`
     : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
   // Administración arriba, luego el árbol PROYECTOS y después los módulos (pedido q6)

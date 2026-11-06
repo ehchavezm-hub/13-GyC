@@ -396,8 +396,10 @@ async function asignarLideres(p) {
     titulo: `Líderes de ${p.nombre_corto}`, texto: 'Guardar',
     campos: [{ name: 'lideres', label: 'Líderes', type: 'multiselect', unaColumna: true, options: opcionesEquipo(), value: lideresDe(p.id) }],
     alGuardar: async v => {
+      // Se conserva el rol en el proyecto (miembro / administrador) de quienes siguen
+      const rolDe = new Map(store.proyectoLideres.filter(l => l.proyecto_id === p.id).map(l => [l.usuario_id, l.rol || 'miembro']));
       await api.removeWhere('proyecto_lideres', { eq: { proyecto_id: p.id } });
-      if (v.lideres.length) await api.insert('proyecto_lideres', v.lideres.map(u => ({ proyecto_id: p.id, usuario_id: u })));
+      if (v.lideres.length) await api.insert('proyecto_lideres', v.lideres.map(u => ({ proyecto_id: p.id, usuario_id: u, rol: rolDe.get(u) || 'miembro' })));
       await cargarCatalogo();
       todasLasGrillas().forEach(g => g.refrescar());
     },

@@ -1,6 +1,6 @@
 // Arranque del aplicativo: sesión, catálogo, estructura y rutas.
 import { api, mensajeError } from './data/api.js';
-import { store, cargarPerfil, cargarCatalogo, esStaff, esAdmin } from './core/store.js';
+import { store, cargarPerfil, cargarCatalogo, esStaff, tieneAdministracion } from './core/store.js';
 import { ruta, iniciarRouter } from './core/router.js';
 import { montarLayout } from './ui/layout.js';
 import { mostrarLogin, mostrarPendiente, mostrarNuevaClave } from './views/login.js';
@@ -116,7 +116,7 @@ async function arrancar() {
     guardia: r => {
       if (r.staff && !esStaff()) { location.hash = '#/tablero'; return false; }
       if (r.gestor && !['superadmin', 'admin', 'delegado'].includes(store.usuario.rol)) { location.hash = '#/plan'; return false; }
-      if (r.admin && !esAdmin()) { location.hash = '#/tablero'; return false; }
+      if (r.admin && !tieneAdministracion()) { location.hash = '#/tablero'; return false; }
       return true;
     },
   });

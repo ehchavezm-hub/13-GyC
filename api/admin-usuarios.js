@@ -460,8 +460,9 @@ async function accionLideres(yo, d) {
   const validos = pedidos.length
     ? (await query(`SELECT id FROM profiles WHERE id = ANY($1::text[]) AND pertenece(id, $2)`, [pedidos, p.area_id])).map(r => r.id)
     : [];
+  // Se conserva el rol en el proyecto (miembro / administrador) de quienes siguen
   await transaccion(yo.id, [
-    [`DELETE FROM proyecto_lideres WHERE proyecto_id = $1`, [pid]],
+    [`DELETE FROM proyecto_lideres WHERE proyecto_id = $1 AND NOT (usuario_id = ANY($2::text[]))`, [pid, validos]],
     ...validos.map(u => [`INSERT INTO proyecto_lideres (proyecto_id, usuario_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [pid, u]]),
   ]);
   return { ok: true };

@@ -128,6 +128,34 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   await ctx.close();
   console.log(`✔ programa de arranque (${filas} ítems) y estilos`);
 }
+// Tres niveles de administración (pedido a7): qué ve cada persona en la consola
+await api('user_admin', 'datos', { accion: 'updateWhere', tabla: 'proyecto_lideres', eq: { proyecto_id: proy.id, usuario_id: 'user_lider' }, data: { rol: 'administrador' } });
+for (const [usuario, debe, noDebe] of [
+  ['user_admin', ['Nivel 1', 'Nivel 2', 'Nivel 3'], []],
+  ['user_lider', ['Nivel 3', 'Miembros del proyecto'], ['Nivel 1', 'Nivel 2']],
+]) {
+  const ctx = await navegador.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  const pagina = await ctx.newPage();
+  pagina.on('pageerror', e => errores.push(`[${usuario}] JS en administración: ${e.message}`));
+  await pagina.route('**/clerk.browser.js', r => r.fulfill({ contentType: 'text/javascript', body: clerkFalso(usuario) }));
+  await pagina.goto(`${BASE}#/admin`);
+  await pagina.waitForTimeout(2500);
+  const texto = (await pagina.locator('.admin-nav').innerText().catch(() => '')).toLowerCase();
+  for (const t of debe) if (!texto.includes(t.toLowerCase())) errores.push(`[${usuario}] administración: falta «${t}»`);
+  for (const t of noDebe) if (texto.includes(t.toLowerCase())) errores.push(`[${usuario}] administración: no debería ver «${t}»`);
+  if (usuario === 'user_lider' && !(await pagina.locator('[data-quitar]').count())) errores.push('[user_lider] nivel 3: no se listan los miembros');
+  await ctx.close();
+}
+{
+  const ctx = await navegador.newContext({ serviceWorkers: 'block' });
+  const pagina = await ctx.newPage();
+  await pagina.route('**/clerk.browser.js', r => r.fulfill({ contentType: 'text/javascript', body: clerkFalso('user_consulta') }));
+  await pagina.goto(`${BASE}#/tablero`);
+  await pagina.waitForTimeout(2000);
+  if ((await pagina.locator('body').innerText()).includes('Administración')) errores.push('[user_consulta] ve «Administración» sin administrar nada');
+  await ctx.close();
+}
+console.log('✔ tres niveles de administración');
 await navegador.close();
 console.log(`${pantallas} pantallas recorridas en modo real`);
 if (errores.length) { console.log([...new Set(errores)].join('\n')); process.exit(1); }
