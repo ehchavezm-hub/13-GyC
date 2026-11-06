@@ -1,9 +1,11 @@
 // Consola de Administración — GyC
 // Barra superior: ⚙ Administración › [Plataforma] › EMPRESA (selector) › PROYECTO (selector).
-// Menú PLATAFORMA (propietarios de la plataforma, admin-plataforma.js) y menú EMPRESA (la empresa en la que se trabaja).
+// Tres niveles (pedido a7): 1 · Plataforma (propietarios, admin-plataforma.js), 2 · Empresa (administra los proyectos
+// de la empresa) y 3 · Proyecto (administra un proyecto: sus miembros, admin-proyecto.js).
 // Spec: docs/LPS-GT_Alcance_v0.7.docx sección 6.1-6.2
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esAdmin, cargarCatalogo, etiqueta, nombre, seleccionarProyecto } from '../core/store.js';
+import { store, on, esAdmin, esAdminEmpresa, cargarCatalogo, etiqueta, nombre, seleccionarProyecto } from '../core/store.js';
+import { panelMiembrosProyecto, proyectoAdministrado } from './admin-proyecto.js';
 import * as plat from './admin-plataforma.js';
 import { ROLES, COLOR_ROL } from '../data/catalogos.js';
 import { esc } from '../core/util.js';
@@ -27,6 +29,7 @@ const MENU_PLATAFORMA = [
 ];
 const MENU = [
   { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
+  { id: 'usuarios',      ico: '👥', texto: 'Usuarios de la empresa',  si: esAdminEmpresa },
   { sep: true },
   // Usuarios y roles, Administrador delegado y Matriz de permisos son de los Grupos LPS: quedan en Configuración (pedido 16)
   { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
@@ -35,11 +38,18 @@ const MENU = [
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
 ];
+// Nivel 3 · Proyecto: el proyecto elegido en la barra (si lo administra) o el primero que administra
+const MENU_PROYECTO = [
+  { id: 'proy-miembros', ico: '👥', texto: 'Miembros del proyecto' },
+  { id: 'proy-info',     ico: 'ℹ️', texto: 'Información del proyecto' },
+];
+const panelPorDefecto = () => esPlataforma() ? 'p-empresas' : esAdminEmpresa() ? 'resumen' : 'proy-miembros';
+const esPanelEmpresa = id => MENU.some(m => m.id === id);
 
 
 // ---------- API pública ----------
 export function showAdminConsole(panelInicial, el) {
-  panelActivo = panelInicial || (esPlataforma() ? 'p-empresas' : 'resumen');
+  panelActivo = panelInicial || panelPorDefecto();
   contenedor = el;
 
   el.innerHTML = buildShell();
@@ -60,6 +70,8 @@ export function showAdminConsole(panelInicial, el) {
       const grupo = !!store.proyectos.find(p => p.id === sel.value)?.padre_id;
       seleccionarProyecto(sel.value);
       repintarCabecera();
+      pintarMenu();
+      if (panelActivo.startsWith('proy-')) renderPanel();
       ok(`${grupo ? 'Grupo LPS' : 'Proyecto'} seleccionado: el plan, el Look Ahead y los reportes se filtran por él.`);
     }
   });
@@ -135,9 +147,11 @@ function pintarMenu() {
   const item = m => m.sep ? '<hr class="admin-nav-sep">' : `<button class="admin-item${panelActivo === m.id ? ' activo' : ''}" data-panel="${m.id}">
       <span class="admin-ico">${m.ico}</span><span class="admin-txt">${esc(m.texto)}</span></button>`;
   const empresaItems = MENU.filter(m => !m.si || m.si());
-  // Quién administra cada bloque (pedido q5): la plataforma, el propietario; la empresa, la del usuario
-  nav.innerHTML = (esPlataforma() ? `<div class="admin-nav-grupo" title="Solo los propietarios de la plataforma">Plataforma (Propietario)</div>${MENU_PLATAFORMA.map(item).join('')}<hr class="admin-nav-sep">` : '') +
-    `<div class="admin-nav-grupo" title="${esc(store.area?.nombre || '')}">Empresa (${esc(store.area?.nombre || '')})</div>${empresaItems.map(item).join('')}`;
+  const proy = proyectoAdministrado();
+  // Tres niveles (pedido a7): plataforma (propietario), empresa (sus proyectos) y proyecto (sus miembros)
+  nav.innerHTML = (esPlataforma() ? `<div class="admin-nav-grupo" title="Solo los propietarios de la plataforma: gestionan las empresas">Nivel 1 · Plataforma (Propietario)</div>${MENU_PLATAFORMA.map(item).join('')}<hr class="admin-nav-sep">` : '') +
+    (esAdminEmpresa() && empresaItems.some(m => !m.sep) ? `<div class="admin-nav-grupo" title="Administra los proyectos de la empresa">Nivel 2 · Empresa (${esc(store.area?.nombre || '')})</div>${empresaItems.map(item).join('')}<hr class="admin-nav-sep">` : '') +
+    (proy ? `<div class="admin-nav-grupo" title="Administra un proyecto: sus miembros y su información">Nivel 3 · Proyecto (${esc(proy.codigo)})</div>${MENU_PROYECTO.map(item).join('')}` : '');
 }
 
 function navegarA(id) {
@@ -161,7 +175,9 @@ async function renderPanel() {
     await seccionConfig(nombre, el);
   };
   const ctx = { imprimir: imprimirPanel, repintarCabecera };
-  if (panelActivo.startsWith('p-') && !esPlataforma()) panelActivo = 'resumen';
+  if (panelActivo.startsWith('p-') && !esPlataforma()) panelActivo = panelPorDefecto();
+  if (esPanelEmpresa(panelActivo) && !esAdminEmpresa()) panelActivo = 'proy-miembros';
+  pintarMenu();
   try {
     const mapa = {
       'p-resumen':     el => plat.panelResumenPlataforma(el, ctx),
@@ -176,6 +192,9 @@ async function renderPanel() {
       // Propietarios: la misma vista de dos pestañas que en Plataforma, solo con esta empresa (pedido 16)
       'estructura':  el => plat.panelEstructuraEmpresa(el, ctx),
       'auditoria':   config('auditoria'),
+      'usuarios':    config('usuarios'),
+      'proy-miembros': el => panelMiembrosProyecto(el, ctx),
+      'proy-info':   async el => { el.innerHTML = ''; (await import('./informacion-proyecto.js')).render(el); },
     };
     const fn = mapa[panelActivo];
     if (fn) await fn(cont);

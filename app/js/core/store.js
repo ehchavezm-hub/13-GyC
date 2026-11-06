@@ -118,6 +118,25 @@ export function rol() { return store.usuario?.rol || 'anonimo'; }
 export function esSuperadmin() { return rol() === 'superadmin' || !!store.usuario?.es_admin_principal; }
 export function esAdmin() { return ['superadmin', 'admin'].includes(rol()); }
 export function esGestor() { return ['superadmin', 'admin', 'delegado'].includes(rol()); }
+
+// ---------- Tres niveles de administración (pedido a7) ----------
+/** Nivel 1 · Plataforma: propietarios, gestionan las empresas. */
+export function esAdminPlataforma() { return !!store.usuario?.es_plataforma; }
+/** Nivel 2 · Empresa: super administrador, administrador y delegado; gestionan los proyectos de su empresa. */
+export function esAdminEmpresa() { return esGestor() || !!store.usuario?.es_admin_principal; }
+/** Nivel 3 · Proyecto: administra el proyecto (o el proyecto del Grupo LPS) indicado. Los niveles 1 y 2 también. */
+export function esAdminProyecto(id) {
+  if (!id) return false;
+  if (esAdminPlataforma() || esAdminEmpresa()) return true;
+  const p = proyecto(id);
+  const ids = [id, p?.padre_id].filter(Boolean);
+  return (!!p && p.created_by === store.usuario?.id) ||
+    store.proyectoLideres.some(l => ids.includes(l.proyecto_id) && l.usuario_id === store.usuario?.id && l.rol === 'administrador');
+}
+/** Proyectos que la persona administra como nivel 3. */
+export function proyectosQueAdministro() { return store.proyectos.filter(p => esAdminProyecto(p.id)); }
+/** ¿Tiene algún nivel de administración? (muestra «Administración» en el menú) */
+export function tieneAdministracion() { return esAdminPlataforma() || esAdminEmpresa() || proyectosQueAdministro().length > 0; }
 export function esStaff() { return ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
 export function puede(accion) {
   if (esSuperadmin()) return true;

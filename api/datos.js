@@ -81,8 +81,23 @@ async function verificarCambioPerfil(perfil, id, data) {
 
 // ── Acciones ────────────────────────────────────────────────────────────────
 
+// Miembros de un proyecto: solo quien lo administra (nivel 1 plataforma, 2 empresa o 3 administrador del proyecto)
+async function verificarMiembrosProyecto(accion, params, perfil) {
+  const filas = Array.isArray(params.data) ? params.data : params.data ? [params.data] : [];
+  const ids = ['insert', 'upsert'].includes(accion) ? filas.map(f => f?.proyecto_id) : [params.eq?.proyecto_id];
+  if (!ids.length || ids.some(x => !x)) throw new AuthError('Indique el proyecto (proyecto_id).', 400);
+  for (const id of new Set(ids)) {
+    const [r] = await query(`SELECT administra_proyecto($1, $2) AS ok`, [perfil.id, id]);
+    if (!r?.ok) throw new AuthError('Solo los administradores del proyecto gestionan sus miembros.', 403);
+  }
+}
+
 async function ejecutarAccion(accion, tabla, params, perfil) {
   verificarAcceso(accion, tabla, params, perfil);
+  if (tabla === 'proyecto_lideres' && accion !== 'list') {
+    if (['update', 'remove'].includes(accion)) throw new Error('Use updateWhere / removeWhere con proyecto_id y usuario_id.');
+    await verificarMiembrosProyecto(accion, params, perfil);
+  }
   const cols = await columnas(tabla);
   switch (accion) {
     case 'list':        return accionList(tabla, cols, params, perfil);

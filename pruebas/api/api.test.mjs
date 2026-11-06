@@ -31,6 +31,7 @@ before(async () => {
     await c.query(migracion('035_compatibilidad_api.sql'));
     await c.query(migracion('036_cuentas_preasignadas.sql'));
     await c.query(migracion('037_programa_arranque_r1.sql'));
+    await c.query(migracion('038_administracion_tres_niveles.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {
@@ -222,7 +223,7 @@ test('plataforma: crear empresa con semilla, estructura y aislamiento entre empr
   assert.equal((await B.list('proyectos', { eq: { id: proy.id } })).length, 0);
   await assert.rejects(B.update('proyectos', proy.id, { nombre_corto: 'hack' }), /ya no existe/);
   await assert.rejects(B.insert('actividades', { area_id, semana: lunes, responsable_id: 'user_lider', descripcion: 'x' }), /no pertenece a su empresa/);
-  await assert.rejects(B.insert('proyecto_lideres', { proyecto_id: proy.id, usuario_id: 'user_lider' }), /no pertenece a su empresa/);
+  await assert.rejects(B.insert('proyecto_lideres', { proyecto_id: proy.id, usuario_id: 'user_lider' }), /no pertenece a su empresa|administradores del proyecto/);
   await B.remove('proyectos', proy.id);
   assert.equal((await A.adminUsuarios('historial_proyecto', { id: proy.id })).subproyectos, 1);
   const plat = await A.adminUsuarios('plataforma');
@@ -283,4 +284,25 @@ test('cuenta preasignada por correo: entra directo con su rol', async () => {
   assert.equal(p.area_id, ctx.area);
   const plat = await cliente('user_dueno').adminUsuarios('plataforma');
   assert.ok(plat.areas.length >= 1);
+});
+
+test('tres niveles: el administrador del proyecto gestiona sus miembros; un miembro no', async () => {
+  const [p] = await A.insert('proyectos', { codigo: 'N3', nombre_corto: 'Nivel 3', estado: 'activo' });
+  await A.insert('proyecto_lideres', [{ proyecto_id: p.id, usuario_id: 'user_lider', rol: 'administrador' }]);
+  // nivel 3: agrega a otra persona y le cambia el rol
+  await B.insert('proyecto_lideres', [{ proyecto_id: p.id, usuario_id: 'user_dueno', rol: 'miembro' }]);
+  await B.updateWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: 'user_dueno' } }, { rol: 'administrador' });
+  await B.updateWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: 'user_dueno' } }, { rol: 'miembro' });
+  // un líder que no administra otro proyecto no puede tocar sus miembros
+  const [otro] = await A.insert('proyectos', { codigo: 'OTRO', nombre_corto: 'Otro', estado: 'activo' });
+  await assert.rejects(B.insert('proyecto_lideres', [{ proyecto_id: otro.id, usuario_id: 'user_lider' }]), /administradores del proyecto/);
+  await assert.rejects(B.removeWhere('proyecto_lideres', { eq: { usuario_id: 'user_lider' } }), /proyecto_id/);
+  // al dejar de ser administrador pierde el permiso
+  await A.updateWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: 'user_lider' } }, { rol: 'miembro' });
+  await assert.rejects(B.removeWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: 'user_dueno' } }), /administradores del proyecto/);
+  // «lideres» de la plataforma conserva el rol de quienes siguen
+  await A.updateWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: 'user_lider' } }, { rol: 'administrador' });
+  await A.adminUsuarios('lideres', { proyecto_id: p.id, usuario_ids: ['user_lider'] });
+  const m = await A.list('proyecto_lideres', { eq: { proyecto_id: p.id } });
+  assert.deepEqual(m.map(x => [x.usuario_id, x.rol]), [['user_lider', 'administrador']]);
 });

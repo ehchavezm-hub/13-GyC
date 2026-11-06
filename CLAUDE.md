@@ -35,7 +35,7 @@ api/
   datos.js      CRUD genérico (list/insert/upsert/update/updateWhere/remove/removeWhere/rpc)
   admin-usuarios.js  Usuarios (Clerk), empresas, consola de la plataforma y mejoras
 db/
-  migrations/   000_gyc_neon_completo.sql → 035_compatibilidad_api.sql → 036_cuentas_preasignadas.sql (Neon SQL Editor, en orden)
+  migrations/   000 → 035 → 036 → 037 → 038 (Neon SQL Editor, en orden; 035–038 se pueden repetir)
   legado-supabase/  001–034 originales de Supabase (solo referencia; NO ejecutar en Neon)
   tests/run.sh  Prueba 000 + 035 en un PostgreSQL temporal y luego el API (pruebas/api)
 pruebas/
@@ -46,6 +46,9 @@ pruebas/
 - ES Modules (`"type": "module"` en package.json)
 - Vanilla JS sin frameworks — sin React, Vue, etc.
 - Sin modo demostración: el aplicativo trabaja solo con el API real
+- Tres niveles de administración: 1 · Plataforma (`profiles.es_plataforma`), 2 · Empresa (rol superadmin/admin/delegado),
+  3 · Proyecto (`proyecto_lideres.rol = 'administrador'`); en SQL `administra_proyecto(usuario, proyecto)`,
+  en el aplicativo `esAdminPlataforma / esAdminEmpresa / esAdminProyecto` (core/store.js)
 - El adaptador expone: `list, insert, upsert, update, updateWhere, remove, removeWhere, rpc, adminUsuarios, fijarArea, subscribe, auth`
 - `subscribe()` es no-op (Realtime no disponible en Vercel)
 - Variables de config: `window.GYC_CONFIG` (no `LPSGT_CONFIG`)
@@ -60,8 +63,8 @@ pruebas/
 
 ## Despliegue
 1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY` (opcional `CLERK_JWT_KEY` para verificar sin red)
-2. Neon: ejecutar `db/migrations/000_gyc_neon_completo.sql`, `035_compatibilidad_api.sql` y `036_cuentas_preasignadas.sql`
-   en el SQL Editor, en ese orden (035 y 036 se pueden ejecutar más de una vez)
+2. Neon: ejecutar en el SQL Editor, en orden: `000_gyc_neon_completo.sql`, `035_compatibilidad_api.sql`,
+   `036_cuentas_preasignadas.sql`, `037_programa_arranque_r1.sql`, `038_administracion_tres_niveles.sql`
 3. Clerk: copiar Publishable Key → `app/config.js` → `clerkPublishableKey` (única fuente; `config.js` carga Clerk)
 4. La primera persona que ingresa queda como super administrador principal y propietaria de la plataforma;
    las siguientes quedan "pendiente" hasta que un gestor les asigne rol, salvo que su correo esté en
