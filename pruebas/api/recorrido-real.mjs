@@ -87,6 +87,26 @@ for (const usuario of ['user_admin', 'user_lider', 'user_consulta']) {
   await ctx.close();
   console.log(`✔ ${usuario}`);
 }
+// Estilos: ninguna hoja vacía y la página con diseño aplicado
+for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) {
+  const t = await fetch(new URL(css, BASE)).then(r => r.ok ? r.text() : '');
+  if (t.length < 1000) errores.push(`estilos: ${css} está vacío o no existe (${t.length} bytes)`);
+}
+// Programa de arranque del proyecto elegido: sus 81 ítems
+{
+  const ctx = await navegador.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  const pagina = await ctx.newPage();
+  await pagina.route('**/clerk.browser.js', r => r.fulfill({ contentType: 'text/javascript', body: clerkFalso('user_admin') }));
+  await pagina.addInitScript(id => localStorage.setItem('gyc-proyecto', id), proy.id);
+  await pagina.goto(`${BASE}#/programa-arranque`);
+  await pagina.waitForTimeout(2500);
+  const filas = await pagina.locator('[data-item-row]').count();
+  if (filas !== 81) errores.push(`programa de arranque: ${filas} ítems en pantalla (se esperaban 81)`);
+  const fondo = await pagina.evaluate(() => getComputedStyle(document.querySelector('.cabecera') || document.body).display);
+  if (!fondo || fondo === 'block') errores.push(`estilos: la cabecera no tiene diseño aplicado (display=${fondo})`);
+  await ctx.close();
+  console.log(`✔ programa de arranque (${filas} ítems) y estilos`);
+}
 await navegador.close();
 console.log(`${pantallas} pantallas recorridas en modo real`);
 if (errores.length) { console.log([...new Set(errores)].join('\n')); process.exit(1); }
