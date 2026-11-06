@@ -144,13 +144,15 @@ async function inicializarClerk() {
   }
   if (typeof window.Clerk === 'undefined') { console.warn('Clerk SDK no disponible'); return; }
   try {
-    // Browser CDN: window.Clerk puede ser constructor o instancia ya creada
+    // Clerk v5 CDN con data-clerk-publishable-key: auto-inicializa; solo llamar load() si aún no está listo
     if (typeof window.Clerk === 'function') {
+      // Fallback: CDN sin auto-init, construir manualmente
       window.Clerk = new window.Clerk(key);
-    }
-    if (typeof window.Clerk.load === 'function') {
+      await window.Clerk.load();
+    } else if (typeof window.Clerk.load === 'function') {
       await window.Clerk.load();
     }
+    // Si ya está completamente cargado (auto-init del CDN), no hacer nada
   } catch (e) { console.error('Clerk.load error:', e); }
 }
 
