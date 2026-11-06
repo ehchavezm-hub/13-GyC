@@ -112,6 +112,18 @@ async function crearEnClerk(email, nombre, clave) {
   }
 }
 
+// Id de Clerk de un correo que ya tiene cuenta
+async function idEnClerk(email) {
+  try {
+    const r = await clerk().users.getUserList({ emailAddress: [email], limit: 1 });
+    const lista = Array.isArray(r) ? r : r?.data || [];
+    return lista[0]?.id || null;
+  } catch (e) {
+    console.error('[admin] getUserList:', e?.message ?? e);
+    return null;
+  }
+}
+
 // ── Usuarios ─────────────────────────────────────────────────────────────────
 
 async function accionCrearCuenta(yo, { email, nombre, clave }) {
@@ -159,7 +171,20 @@ async function accionCrear(yo, d) {
   }
 
   if (clave.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
-  const id = await crearEnClerk(email, nombre, clave);
+  let id, yaTeniaCuenta = false;
+  try {
+    id = await crearEnClerk(email, nombre, clave);
+  } catch (e) {
+    if (!e.yaExiste) throw e;
+    // Ya tiene cuenta en Clerk pero nunca entró a GyC (sin perfil): se usa esa cuenta con la contraseña temporal
+    id = await idEnClerk(email);
+    if (!id) throw e;
+    const [perfil] = await query(`SELECT id, eliminado FROM profiles WHERE id = $1`, [id]);
+    if (perfil && !perfil.eliminado) throw new Error('Esa persona ya es usuaria de GyC (búsquela con otro correo o en otra empresa).');
+    try { await clerk().users.updateUser(id, { password: clave, skipPasswordChecks: false }); }
+    catch (err) { throw new Error(errorClerk(err)); }
+    yaTeniaCuenta = true;
+  }
   const gerencias = Array.isArray(d.gerencia_ids) ? d.gerencia_ids.filter(x => UUID_RE.test(String(x))) : [];
   const horas = d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia);
   await query(
@@ -167,10 +192,16 @@ async function accionCrear(yo, d) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid[], $9, true, true)
      ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, nombre = EXCLUDED.nombre, rol = EXCLUDED.rol,
        area_id = EXCLUDED.area_id, codigo = EXCLUDED.codigo, cargo_id = EXCLUDED.cargo_id,
-       gerencia_ids = EXCLUDED.gerencia_ids, horas_dia = EXCLUDED.horas_dia, debe_cambiar_clave = true`,
+       gerencia_ids = EXCLUDED.gerencia_ids, horas_dia = EXCLUDED.horas_dia, debe_cambiar_clave = true,
+       activo = true, eliminado = false`,
     [id, email, nombre, rol, destino, d.codigo ? String(d.codigo).trim() : null,
       UUID_RE.test(String(d.cargo_id || '')) ? d.cargo_id : null, gerencias, horas], yo.id);
-  return { id };
+  // Si estaba preasignada (migración 036/038), recibe además sus proyectos; el rol es el elegido en el formulario
+  await transaccion(yo.id, [
+    [`SELECT gyc_aplicar_preasignacion($1)`, [id]],
+    [`UPDATE profiles SET rol = $2, area_id = $3 WHERE id = $1`, [id, rol, destino]],
+  ]).catch(e => console.error('[admin] preasignación:', e?.message ?? e));
+  return { id, ya_tenia_cuenta: yaTeniaCuenta };
 }
 
 async function accionClave(yo, { usuario_id, clave }) {

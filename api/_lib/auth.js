@@ -17,7 +17,12 @@ export const esSuper = p => p?.rol === 'superadmin' || !!p?.es_admin_principal;
 /** Perfil activo con rol asignado (no pendiente, no eliminado). */
 export const habilitado = p => !!p && p.activo && !p.eliminado && p.rol !== 'pendiente';
 
+// Solo pruebas: reemplaza el cliente de Clerk
+let _clerk = null;
+export function usarClerk(c) { _clerk = c; }
+
 export function clerk() {
+  if (_clerk) return _clerk;
   if (!process.env.CLERK_SECRET_KEY) throw new AuthError('CLERK_SECRET_KEY no configurada', 500);
   return createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 }

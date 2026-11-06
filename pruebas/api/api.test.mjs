@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { usarEjecutor, configurarTipos } from '../../api/_lib/db.js';
-import { usarVerificador } from '../../api/_lib/auth.js';
+import { usarVerificador, usarClerk } from '../../api/_lib/auth.js';
 import datos from '../../api/datos.js';
 import admin from '../../api/admin-usuarios.js';
 import { semillaEmpresa } from '../../app/js/data/catalogos.js';
@@ -305,4 +305,32 @@ test('tres niveles: el administrador del proyecto gestiona sus miembros; un miem
   await A.adminUsuarios('lideres', { proyecto_id: p.id, usuario_ids: ['user_lider'] });
   const m = await A.list('proyecto_lideres', { eq: { proyecto_id: p.id } });
   assert.deepEqual(m.map(x => [x.usuario_id, x.rol]), [['user_lider', 'administrador']]);
+});
+
+test('nuevo usuario con cuenta ya existente en Clerk: se usa esa cuenta y aparece en la empresa', async () => {
+  const cuentas = new Map([['nbolivar@cosapi.com.pe', 'user_nelson']]);
+  const claves = [];
+  usarClerk({ users: {
+    createUser: async ({ emailAddress: [e] }) => {
+      if (cuentas.has(e)) { const err = new Error('x'); err.errors = [{ message: 'That email address is taken. Please try another.' }]; throw err; }
+      cuentas.set(e, 'user_' + e.split('@')[0]); return { id: cuentas.get(e) };
+    },
+    getUserList: async ({ emailAddress: [e] }) => ({ data: cuentas.has(e) ? [{ id: cuentas.get(e) }] : [] }),
+    updateUser: async (id, { password }) => { claves.push([id, password]); return { id }; },
+  } });
+  try {
+    await pool.query(`INSERT INTO cuentas_preasignadas (email, rol, area_id, proyecto_ids, proyecto_rol) VALUES ('nbolivar@cosapi.com.pe', 'lider', $1, ARRAY[$2]::uuid[], 'administrador')`,
+      [ctx.area, ctx.proyecto2 ?? (await A.list('proyectos', {}))[0].id]);
+    const r = await A.adminUsuarios('crear', { email: 'NBolivar@cosapi.com.pe', nombre: 'Nelson Bolivar', rol: 'superadmin', clave: 'Temporal123' });
+    assert.deepEqual([r.id, r.ya_tenia_cuenta], ['user_nelson', true]);
+    assert.deepEqual(claves, [['user_nelson', 'Temporal123']]);
+    const [p] = await A.list('profiles', { eq: { id: 'user_nelson' } });
+    assert.deepEqual([p.rol, p.area_id, p.debe_cambiar_clave, p.nombre], ['superadmin', ctx.area, true, 'Nelson Bolivar']);
+    assert.equal((await A.list('proyecto_lideres', { eq: { usuario_id: 'user_nelson' } }))[0]?.rol, 'administrador');
+    // Repetirlo avisa que ya es usuario
+    await assert.rejects(A.adminUsuarios('crear', { email: 'nbolivar@cosapi.com.pe', nombre: 'N', rol: 'lider', clave: 'Temporal123' }), /Ya existe un usuario con ese correo|ya es usuaria/);
+    // Cuenta nueva: se crea normalmente
+    const n = await A.adminUsuarios('crear', { email: 'nuevo@cosapi.com.pe', nombre: 'Nuevo', rol: 'lider', clave: 'Temporal123' });
+    assert.equal(n.ya_tenia_cuenta, false);
+  } finally { usarClerk(null); }
 });
