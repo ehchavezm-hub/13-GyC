@@ -9,7 +9,7 @@ const BASE = 'http://localhost:8099/';
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
   // datos viejos sin la lista: se agrega sola
-  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db')); const l = db.listas.find(x => x.clave === 'cargos'); db.listas = db.listas.filter(x => x !== l); db.lista_valores = db.lista_valores.filter(v => v.lista_id !== l.id); localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); });
+  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('gyc-demo-db')); const l = db.listas.find(x => x.clave === 'cargos'); db.listas = db.listas.filter(x => x !== l); db.lista_valores = db.lista_valores.filter(v => v.lista_id !== l.id); localStorage.setItem('gyc-demo-db', JSON.stringify(db)); });
   await p.goto(BASE + '?demo&y=1#/config/listas?lista=cargos'); await p.waitForTimeout(1500);
   const grupo = await p.$eval('[data-l] option[value="cargos"]', o => o.parentElement.label);
   const n = await p.evaluate(() => Tabulator.findTable('.grilla-tabla')[0].getDataCount());

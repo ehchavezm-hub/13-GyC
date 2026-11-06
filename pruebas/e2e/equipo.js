@@ -9,7 +9,7 @@ const BASE = 'http://localhost:8099/';
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
   await p.goto(BASE + '?demo#/equipo'); await p.waitForTimeout(1300);
   const personas = await p.$$eval('[data-tabla] tr td:first-child b', b => b.map(x => x.textContent));
-  const esperadas = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).profiles.filter(x => x.activo && !['consulta', 'pendiente'].includes(x.rol)).map(x => x.nombre).sort());
+  const esperadas = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).profiles.filter(x => x.activo && !['consulta', 'pendiente'].includes(x.rol)).map(x => x.nombre).sort());
   console.log('  equipo:', personas.join(', '));
   console.log(JSON.stringify(personas) === JSON.stringify(esperadas) ? 'OK  aparecen todos (incluidos administradores)' : 'FALLA esperadas: ' + esperadas.join(', '));
   console.log(errs.length ? errs.join('\n') : 'SIN ERRORES');

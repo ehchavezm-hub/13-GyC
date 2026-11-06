@@ -14,7 +14,7 @@ const BASE = 'http://localhost:8099/';
     const row = t.getRows().find(r => r.getData().codigo === 'remoto');
     row.getCell('_cuenta').setValue(false);
     await new Promise(r => setTimeout(r, 1500));
-    const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+    const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     return [t.getColumns().map(c => c.getField()).join(','), JSON.stringify(db.lista_valores.find(v => v.codigo === 'remoto').extra)];
   });
   console.log(r, errs);

@@ -21,7 +21,7 @@ const BASE = 'http://localhost:8099/';
   const pc = await p.$$eval('.tabulator-col-title', t => t.map(x => x.textContent).filter(Boolean));
   chk(pc.includes('CET / Servicio') && !pc.includes('CET') && !pc.includes('Servicio / Entregable'), 'plan muestra CET / Servicio');
   // datos viejos del navegador se renombran
-  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db')); db.listas.find(l => l.clave === 'servicios').nombre = 'Servicios / Entregables'; localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); });
+  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('gyc-demo-db')); db.listas.find(l => l.clave === 'servicios').nombre = 'Servicios / Entregables'; localStorage.setItem('gyc-demo-db', JSON.stringify(db)); });
   await p.goto(BASE + '?demo&y=1#/config/listas'); await p.waitForTimeout(1500);
   chk((await p.$$eval('[data-l] option', o => o.map(x => x.textContent))).includes('CET / Servicio'), 'datos demo existentes renombrados');
   console.log(errs.length ? 'ERRORES:\n' + errs.join('\n') : 'SIN ERRORES');

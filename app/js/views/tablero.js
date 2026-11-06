@@ -12,7 +12,7 @@ const COLORES = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948
 let graficos = [], desuscribir = [], estado;
 
 export async function render(el) {
-  estado = { semanas: Number(localStorage.getItem('lpsgt-tablero-semanas') || 12), gerencia: '', lider: '' };
+  estado = { semanas: Number(localStorage.getItem('gyc-tablero-semanas') || 12), gerencia: '', lider: '' };
   const pag = html(`<div>
     <div class="pagina-cab"><h1>Tablero</h1>
       <select class="sel" data-sem>${
@@ -60,7 +60,7 @@ export async function render(el) {
       selSem.querySelector('option[data-custom]')?.remove();
       estado.semanas = Number(e.target.value);
     }
-    localStorage.setItem('lpsgt-tablero-semanas', String(estado.semanas));
+    localStorage.setItem('gyc-tablero-semanas', String(estado.semanas));
     cargar();
   };
   pag.querySelector('[data-ger]').onchange = e => { estado.gerencia = e.target.value; pintar(); };

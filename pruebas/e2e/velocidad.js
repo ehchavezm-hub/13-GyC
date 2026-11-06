@@ -9,7 +9,7 @@ const LAT = Number(process.env.LAT || 200);
   const B = 'http://localhost:8099/';
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1500);
-  await p.evaluate(l => localStorage.setItem('lpsgt-latencia', l), String(LAT));
+  await p.evaluate(l => localStorage.setItem('gyc-latencia', l), String(LAT));
   // quieto = sin llamadas nuevas durante 2 latencias
   const quieto = async () => { let n = -1, t0 = Date.now(); for (;;) { const k = await p.evaluate(() => (window.__llamadas || []).length); if (k === n && Date.now() - t0 > 2 * LAT + 100) return; if (k !== n) { n = k; t0 = Date.now(); } await p.waitForTimeout(50); } };
   const medir = async (nombre, accion) => {

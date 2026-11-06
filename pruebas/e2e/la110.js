@@ -41,7 +41,7 @@ const B = 'http://localhost:8099/';
   const tipo = await p.evaluate(() => { const t = Tabulator.findTable('[data-grilla] .tabulator')[0] || Tabulator.findTable('[data-grilla]')[0]; return t.getData().find(r => !r.id)?.tipo; });
   const diaHoy = await p.evaluate(() => ((new Date().getDay() + 6) % 7) + 1);
   chk(diaHoy > 2 ? tipo === 'no_programada' : tipo === 'programada', `Plan: compromiso nuevo hoy = ${tipo} (día ${diaHoy}, registro lunes y martes)`);
-  const guardado = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).parametros.find(x => x.clave === 'look_ahead')?.valor);
+  const guardado = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).parametros.find(x => x.clave === 'look_ahead')?.valor);
   chk(JSON.stringify(guardado) === JSON.stringify({ dias: [1, 2], semana: 'actual' }), 'guardado: ' + JSON.stringify(guardado));
   // Reportes: Look Ahead con las mismas semanas
   await p.goto(B + '?demo&a=5#/reportes'); await p.waitForTimeout(1500);

@@ -37,8 +37,8 @@ const BASE = 'http://localhost:8099/';
   chk(!!(await p.$('.credenciales')), 'restablecer muestra credenciales');
   await p.click('.modal-pie button:has-text("Cerrar")');
   // ingresar como Hugo
-  const id = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).profiles.find(x => x.email === 'hugo@prueba.pe').id);
-  await p.evaluate(id => localStorage.setItem('lpsgt-demo-usuario', id), id);
+  const id = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).profiles.find(x => x.email === 'hugo@prueba.pe').id);
+  await p.evaluate(id => localStorage.setItem('gyc-demo-usuario', id), id);
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForTimeout(1200);
   chk((await p.textContent('body')).includes('contraseña temporal'), 'pide cambiar contraseña al ingresar');
   await p.screenshot({ path: 'shots3/u_forzado.png' });

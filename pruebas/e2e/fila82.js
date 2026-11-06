@@ -9,8 +9,8 @@ const { chromium } = require('playwright');
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
   const largo = 'Planificar\nEl proyecto fue concebido como un último impulso promocional para American Life ante su bajo desempeño comercial y reactivar la carrera musical de Madonna. Según la cantante, la idea de este material era mantener vigente el álbum de estudio.';
   // Datos: actividad comprometida (trasladada) con texto largo en la semana siguiente
-  await p.evaluate(t => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db')); const a = db.actividades.find(x => !x.comprometida);
-    a.descripcion = t; a.comprometida = true; a.estado_la = 'trasladada'; localStorage.setItem('oid', a.id); localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); }, largo);
+  await p.evaluate(t => { const db = JSON.parse(localStorage.getItem('gyc-demo-db')); const a = db.actividades.find(x => !x.comprometida);
+    a.descripcion = t; a.comprometida = true; a.estado_la = 'trasladada'; localStorage.setItem('oid', a.id); localStorage.setItem('gyc-demo-db', JSON.stringify(db)); }, largo);
   await p.goto(B + '?demo&y=1#/lookahead'); await p.waitForTimeout(1800);
   const id = await p.evaluate(() => localStorage.getItem('oid'));
   await p.evaluate(id => { const r = Tabulator.findTable('.grilla-tabla')[0].getRow(id); r.getElement().id = 'objetivo'; r.getElement().scrollIntoView(); }, id);

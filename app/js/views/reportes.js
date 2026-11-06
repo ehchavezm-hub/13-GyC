@@ -275,7 +275,7 @@ export async function render(el) {
   const _semPorAnio = _semRango.reduce((acc, s) => { const y = new Date(s).getFullYear(); (acc[y] = acc[y] || []).push(s); return acc; }, {});
   const semanas = _semRango; // kept for compat (filter uses .map later)
   let opciones = { papel: 'A4', unaHoja: false };
-  try { opciones = { ...opciones, ...JSON.parse(localStorage.getItem('lpsgt-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
+  try { opciones = { ...opciones, ...JSON.parse(localStorage.getItem('gyc-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
   // Cada rol ve los reportes de las pantallas a las que tiene acceso (Consulta: los del Tablero)
   disponibles = REPORTES.filter(r => !r.staff || esStaff());
   // semana: null = la de cada reporte (Plan: la actual; indicadores: la última semana completa, como el Tablero)
@@ -354,7 +354,7 @@ async function generar(releer = true) {
   const d = new Date();
   const archivo = nombreArchivo(rep.titulo, d);
   pag.querySelector('[data-o="archivo"]').value = archivo + '.pdf';
-  try { localStorage.setItem('lpsgt-reportes', JSON.stringify({ papel, unaHoja, ultimo: rep.id })); } catch { /* sin almacenamiento */ }
+  try { localStorage.setItem('gyc-reportes', JSON.stringify({ papel, unaHoja, ultimo: rep.id })); } catch { /* sin almacenamiento */ }
   const carg = pag.querySelector('[data-carg]');
   try {
     if (releer || !ultimoHTML) {

@@ -324,7 +324,7 @@ async function configurarCabecera() {
 
   const numSem = Math.max(4, Math.min(20, parseInt(campos.num_semanas, 10) || 8));
   try {
-    const [actualizado] = await api.update('programa_arranque', p.id, {
+    const actualizado = await api.update('programa_arranque', p.id, {
       cr_proyecto: campos.cr_proyecto || null,
       fecha_movilizacion: campos.fecha_movilizacion || null,
       fecha_construccion: campos.fecha_construccion || null,

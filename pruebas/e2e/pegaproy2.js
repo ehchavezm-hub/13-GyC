@@ -6,7 +6,7 @@ const BASE = 'http://localhost:8099/';
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
-  const datos = () => p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+  const datos = () => p.evaluate(() => { const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     const v = id => db.lista_valores.find(x => x.id === id)?.valor || null;
     return db.proyectos.filter(r => /^[CE]\d/.test(r.codigo)).map(r => ({ c: r.codigo, n: r.nombre_corto, g: v(r.gerencia_id), f: v(r.fase_id), pa: v(r.pais_id), e: r.estado })); });
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());

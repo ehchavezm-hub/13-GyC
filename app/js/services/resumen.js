@@ -15,7 +15,7 @@ export async function generarResumen(semana) {
   const r = resumenPAC(filtradas);
   const meta = Number(param('meta_pac'));
   const lineas = [];
-  lineas.push(`📊 RESUMEN SEMANAL LPS-GES — ${etiquetaSemana(semana)}`);
+  lineas.push(`📊 RESUMEN SEMANAL GyC — ${etiquetaSemana(semana)}`);
   if (store.proyectoSel) lineas.push(`Proyecto: ${nombreProyecto(store.proyectoSel)}`);
   else if (store.nivelSel) lineas.push(nombreSeleccion());
   lineas.push('');
@@ -57,7 +57,7 @@ export async function mostrarResumen(semana) {
     botones: [
       { texto: 'Cerrar' },
       { texto: '✉ Enviar por correo', accion: () => {
-        location.href = `mailto:?subject=${encodeURIComponent('Resumen semanal LPS-GES — ' + etiquetaSemana(semana))}&body=${encodeURIComponent(texto)}`;
+        location.href = `mailto:?subject=${encodeURIComponent('Resumen semanal GyC — ' + etiquetaSemana(semana))}&body=${encodeURIComponent(texto)}`;
         return false;
       } },
       { texto: '📋 Copiar para Teams', clase: 'btn-primario', accion: async () => {

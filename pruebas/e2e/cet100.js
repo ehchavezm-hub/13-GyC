@@ -16,10 +16,10 @@ const B = 'http://localhost:8099/';
     await btn.click(); await p.waitForTimeout(400);
     n++; await p.fill('.modal [name="codigo"]', 'CET-T' + n); await p.fill('.modal [name="valor"]', 'Servicio prueba ' + n);
     await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(1200);
-    const ok = await p.evaluate(c => { const d = JSON.parse(localStorage.getItem('lpsgt-demo-db')); return d.lista_valores.some(v => v.codigo === c); }, 'CET-T' + n);
+    const ok = await p.evaluate(c => { const d = JSON.parse(localStorage.getItem('gyc-demo-db')); return d.lista_valores.some(v => v.codigo === c); }, 'CET-T' + n);
     console.log(r, ok ? 'OK botón visible y CET agregado' : 'FALLA');
   }
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(B + '?demo&x=2#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:has-text("Diego Paredes")'); await p.waitForTimeout(1200);
   await p.goto(B + '?demo&y=z#/lookahead'); await p.waitForTimeout(1800);
   console.log('Responsable de actividad:', await p.locator('[data-a="cet"]').count() ? 'FALLA ve el botón' : 'OK sin botón');

@@ -98,7 +98,7 @@ export const PARAMETROS_INICIALES = {
   alerta_dias: 3,
   arrastre_alerta: 2,
   zona_horaria: 'America/Lima',
-  version_app: 'LPS-GES V1.00.01',
+  version_app: 'GyC V1.00.00',
   firma_pdf: 'By EHCM',
   reunion_minutos: { cierre: 10, avance: 10, restricciones: 10, compromisos: 20, lookahead: 10 },
   reconocimientos: { mejor_pac: true, mayor_mejora: true },
@@ -163,7 +163,7 @@ export function semillaEmpresa() {
     valores: PROPIAS.includes(clave) ? [] : vals.map(([codigo, valor, color, protegido, extra]) =>
       ({ codigo: codigo ?? null, valor, color: color ?? null, protegido: !!protegido, extra: extra || {} })),
   }));
-  const parametros = { ...PARAMETROS_INICIALES, version_app: 'LPS V1.00', firma_pdf: '' };
+  const parametros = { ...PARAMETROS_INICIALES, version_app: 'GyC V1.00.00', firma_pdf: '' };
   const permisos = Object.entries(PERMISOS_INICIALES).flatMap(([rol, acciones]) =>
     Object.entries(acciones).map(([accion, permitido]) => ({ rol, accion, permitido })));
   return { listas, parametros, permisos };

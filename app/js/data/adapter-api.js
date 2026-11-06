@@ -1,6 +1,6 @@
 /**
- * Adaptador de datos para Vercel API + Clerk Auth.
- * Reemplaza adapter-supabase.js; misma interfaz pública.
+ * Adaptador de datos para Vercel API (api/datos.js, api/admin-usuarios.js) + Clerk Auth.
+ * Misma interfaz pública que adapter-demo.js.
  */
 
 export function crearAdaptadorApi(apiBase = '/api') {
@@ -16,6 +16,7 @@ export function crearAdaptadorApi(apiBase = '/api') {
 
   async function post(endpoint, body) {
     const tk = await token();
+    if (!tk) throw new Error('La sesión expiró. Vuelva a ingresar.');
     const res = await fetch(`${apiBase}${endpoint}`, {
       method: 'POST',
       headers: {
@@ -94,9 +95,17 @@ export function crearAdaptadorApi(apiBase = '/api') {
       return Promise.resolve(window.Clerk?.user ?? null);
     },
 
+    // Eventos con los mismos nombres que usaba Supabase: SIGNED_IN / SIGNED_OUT / USER_UPDATED
     alCambiar(cb) {
-      if (!window.Clerk) return () => {};
-      const unsub = window.Clerk.addListener(({ user }) => cb('AUTH_CHANGE', user ?? null));
+      if (!window.Clerk?.addListener) return () => {};
+      let previo = window.Clerk.user?.id ?? null;
+      const unsub = window.Clerk.addListener(({ user }) => {
+        const actual = user?.id ?? null;
+        if (actual === previo) return;
+        const evento = !actual ? 'SIGNED_OUT' : !previo ? 'SIGNED_IN' : 'USER_UPDATED';
+        previo = actual;
+        cb(evento, user ?? null);
+      });
       return typeof unsub === 'function' ? unsub : () => {};
     },
 
@@ -113,14 +122,17 @@ export function crearAdaptadorApi(apiBase = '/api') {
       throw new Error('Use el componente de Clerk para recuperar contraseña.');
     },
 
-    async cambiarClave(clave) {
+    // Cambio de la propia contraseña (p. ej. la temporal que asignó el administrador): lo hace Clerk en el navegador;
+    // luego el perfil deja de pedir el cambio
+    async cambiarClave(clave, claveActual) {
       const user = window.Clerk?.user;
       if (!user) throw new Error('No hay sesión activa.');
-      return post('/admin-usuarios', {
-        accion: 'clave',
-        usuario_id: user.id,
-        clave,
-      });
+      try {
+        await user.updatePassword({ newPassword: clave, currentPassword: claveActual || undefined, signOutOfOtherSessions: true });
+      } catch (e) {
+        throw new Error(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || e?.message || String(e));
+      }
+      return update('profiles', user.id, { debe_cambiar_clave: false });
     },
 
     async salir() {
@@ -141,6 +153,7 @@ export function crearAdaptadorApi(apiBase = '/api') {
   }
 
   return {
+    tipo: 'api',
     list, insert, upsert, update, updateWhere,
     remove, removeWhere, rpc,
     adminUsuarios, fijarArea, subscribe, auth,

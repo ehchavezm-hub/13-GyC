@@ -18,7 +18,7 @@ const SW = '/home/user/11-lps_gt/app/sw.js';
   console.log('módulos JS servidos por el service worker:', red.filter(Boolean).length, 'de', red.length);
   // nueva versión publicada
   const orig = fs.readFileSync(SW, 'utf8');
-  fs.writeFileSync(SW, orig.replace(/const VERSION = '[^']*'/, "const VERSION = 'lpsgt-prueba-nueva'"));
+  fs.writeFileSync(SW, orig.replace(/const VERSION = '[^']*'/, "const VERSION = 'gyc-prueba-nueva'"));
   try {
     const recargas = []; p.on('framenavigated', f => { if (f === p.mainFrame()) recargas.push(Date.now()); });
     await p.reload(); await p.waitForTimeout(6000);

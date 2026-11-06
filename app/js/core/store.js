@@ -20,9 +20,9 @@ export const store = {
   supervisiones: [],     // { supervisor_id, subordinado_id, proyecto_id } por Grupo LPS
   favoritos: new Set(),
   columnas: [],
-  proyectoSel: localStorage.getItem('lpsgt-proyecto') || '',
+  proyectoSel: localStorage.getItem('gyc-proyecto') || '',
   // Portafolio o programa elegido en el árbol ('f:<id>' / 'g:<id>'): suma todos sus proyectos y Grupos LPS (pedido Q5)
-  nivelSel: localStorage.getItem('lpsgt-proyecto') ? '' : (localStorage.getItem('lpsgt-nivel') || ''),
+  nivelSel: localStorage.getItem('gyc-proyecto') ? '' : (localStorage.getItem('gyc-nivel') || ''),
   notificaciones: [],
 };
 
@@ -233,7 +233,7 @@ export function lideres({ inactivos = false } = {}) {
 export function equipo() {
   return lideres().slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
-/** Restricción de visibilidad de consulta (en Supabase la aplica RLS; aquí también en modo demostración). */
+/** Restricción de visibilidad de consulta (la aplica también el API en /api/datos; aquí, en ambos modos). */
 export function visibleParaConsulta(proyectoId) {
   if (rol() !== 'consulta') return true;
   const p = store.proyectos.find(x => x.id === proyectoId);
@@ -338,15 +338,15 @@ export function lideresHeredados(id) {
 export function seleccionarProyecto(id) {
   store.proyectoSel = id || '';
   store.nivelSel = '';
-  localStorage.setItem('lpsgt-proyecto', store.proyectoSel);
-  localStorage.removeItem('lpsgt-nivel');
+  localStorage.setItem('gyc-proyecto', store.proyectoSel);
+  localStorage.removeItem('gyc-nivel');
   emit('proyecto', store.proyectoSel);
 }
 /** Elige un portafolio ('f:<id>') o programa ('g:<id>'): los módulos suman todo lo que tiene debajo. */
 export function seleccionarNivel(clave) {
   store.proyectoSel = '';
   store.nivelSel = clave || '';
-  localStorage.setItem('lpsgt-proyecto', '');
-  if (store.nivelSel) localStorage.setItem('lpsgt-nivel', store.nivelSel); else localStorage.removeItem('lpsgt-nivel');
+  localStorage.setItem('gyc-proyecto', '');
+  if (store.nivelSel) localStorage.setItem('gyc-nivel', store.nivelSel); else localStorage.removeItem('gyc-nivel');
   emit('proyecto', '');
 }

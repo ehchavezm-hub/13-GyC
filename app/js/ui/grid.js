@@ -604,7 +604,7 @@ export function crearGrilla(contenedor, cfg) {
 
   // ---------- Guardado automático ----------
   // Normaliza "" a null en campos no-texto: Tabulator devuelve "" al limpiar un list-editor;
-  // Supabase rechaza "" en columnas UUID con "invalid input syntax for type uuid: ''".
+  // La base rechaza "" en columnas UUID con "invalid input syntax for type uuid: ''".
   const camposDB = fila => Object.fromEntries(
     Object.entries(fila)
       .filter(([k]) => !SOLO_LOCAL(k) && !porCampo.get(k)?.calc && !(cfg.camposCalc || []).includes(k))
@@ -629,7 +629,7 @@ export function crearGrilla(contenedor, cfg) {
 
   // Filas nuevas aún sin datos (no se guardan en la base hasta tener contenido): se conservan al recargar
   // la grilla o la página, por usuario, grilla y pantalla (p. ej. cada semana del Plan).
-  const claveBorradores = () => (cfg.id && store.usuario ? `lpsgt-borradores:${store.usuario.id}:${cfg.id}:${location.hash.split('&')[0]}` : null);
+  const claveBorradores = () => (cfg.id && store.usuario ? `gyc-borradores:${store.usuario.id}:${cfg.id}:${location.hash.split('&')[0]}` : null);
   const limpiarFila = d => Object.fromEntries(Object.entries(d).filter(([k]) => !['_guardando', '_nueva'].includes(k)));
   function filasSinGuardar() { return tabla.getRows().map(r => r.getData()).filter(d => !d.id); }
   function guardarBorradores() {

@@ -291,7 +291,7 @@ export async function abrirEmpresa(a, { volverA = '#/admin' } = {}) {
   if (!await confirmar(`¿Abrir la empresa "${a.nombre}"? El aplicativo completo (plan, Look Ahead, tablero…) pasará a mostrar los datos de esa empresa.`,
     { titulo: 'Abrir empresa', texto: 'Abrir' })) return;
   await api.adminUsuarios('usar_empresa', { area_id: a.id });
-  try { localStorage.removeItem('lpsgt-proyecto'); } catch { /* opcional */ }
+  try { localStorage.removeItem('gyc-proyecto'); } catch { /* opcional */ }
   location.hash = volverA;
   location.reload();
 }

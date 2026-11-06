@@ -22,7 +22,7 @@ const BASE = 'http://localhost:8099/';
   await p.click('.tabulator-edit-list-item:text-is("Cerrado")'); await p.waitForTimeout(1500);
   chk((await en('cerrado')).includes('D-102'), 'D-102 pasó a Cerrados');
   console.log('  ventanas:', (await titulos()).join(' | '));
-  const db = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).proyectos.filter(x => ['D-101', 'D-102'].includes(x.codigo)).map(x => x.codigo + ':' + x.estado).join(','));
+  const db = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).proyectos.filter(x => ['D-101', 'D-102'].includes(x.codigo)).map(x => x.codigo + ':' + x.estado).join(','));
   chk(db === 'D-101:en_pausa,D-102:cerrado', 'estados guardados: ' + db);
   await p.evaluate(() => { const f = HTMLElement.prototype.focus; HTMLElement.prototype.focus = function (o) { if (this.closest?.('[data-grilla="cerrado"]')) console.log('FOCO cerrado ' + new Error().stack.split('\n').slice(2, 7).map(x => x.trim().replace(/http:\/\/localhost:8099\//, '')).join(' < ')); return f.call(this, o); };
     document.addEventListener('focusin', e => { if (e.target.closest?.('[data-grilla="cerrado"]')) console.log('FOCUSIN cerrado'); }, true); });

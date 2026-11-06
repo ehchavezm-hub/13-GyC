@@ -7,7 +7,7 @@ const LAT = 200;
   const B = 'http://localhost:8099/';
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1500);
-  await p.evaluate(l => localStorage.setItem('lpsgt-latencia', l), String(LAT));
+  await p.evaluate(l => localStorage.setItem('gyc-latencia', l), String(LAT));
   for (const r of (process.argv[2] || '/plan').split(',')) {
     if (r === 'arranque') { await p.goto(B + '?demo#/plan'); await p.waitForTimeout(4000); }
     else { await p.evaluate(() => { window.__linea = []; }); await p.evaluate(h => { location.hash = h; }, '#' + r); await p.waitForTimeout(4000); }

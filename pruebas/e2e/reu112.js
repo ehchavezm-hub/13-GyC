@@ -15,7 +15,7 @@ const B = 'http://localhost:8099/';
   chk(marcadas.join() === '5', 'por defecto: viernes (' + marcadas + ')');
   for (let i = 0; i < 7; i++) { const c = cas.nth(i); const v = await c.getAttribute('value'); if (['5', '6', '7'].includes(v) !== await c.isChecked()) await c.click(); }
   await p.click('button:has-text("Guardar parámetros")'); await p.waitForTimeout(1200);
-  const guardado = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).parametros.find(x => x.clave === 'reunion')?.valor);
+  const guardado = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).parametros.find(x => x.clave === 'reunion')?.valor);
   chk(JSON.stringify(guardado) === JSON.stringify({ dias: [5, 6, 7], hora: '08:00' }), 'guardado: ' + JSON.stringify(guardado));
   const el = p.locator('[data-name="reunion_dias"]').locator('xpath=..'); await el.scrollIntoViewIfNeeded(); const bx = await el.boundingBox();
   await p.screenshot({ path: 'shots98/reu112.png', clip: { x: bx.x - 10, y: bx.y - 10, width: 900, height: 120 } });

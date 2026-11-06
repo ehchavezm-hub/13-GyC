@@ -7,7 +7,7 @@ const BASE = 'http://localhost:8099/';
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
   const entrar = async nombre => {
-    await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+    await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
     await p.goto(BASE + '?demo&x=' + Date.now() + '#/'); await p.waitForSelector('.usuarios-demo button');
     await p.click(`.usuarios-demo button:has-text("${nombre}")`); await p.waitForTimeout(1000);
   };

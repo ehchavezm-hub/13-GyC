@@ -1,0 +1,71 @@
+// Recorre todas las pantallas en MODO REAL (adapter-api.js → api/ → PostgreSQL) con una sesión de Clerk simulada.
+// Falla si una pantalla pide una tabla, columna o acción que el API o la base no tienen, o si hay errores de JavaScript.
+// Uso: 1) DATABASE_URL_PRUEBAS=… node pruebas/api/servidor-local.mjs 8098 --reiniciar
+//      2) node pruebas/api/recorrido-real.mjs [http://localhost:8098/]
+import { chromium } from 'playwright';
+
+const BASE = process.argv[2] || 'http://localhost:8098/';
+const RUTAS = ['/plan', '/lookahead', '/backlog', '/restricciones', '/cartera', '/tablero', '/reunion', '/equipo', '/plantillas',
+  '/programa-arranque', '/proyectos', '/config/usuarios', '/config/listas', '/config/parametros', '/config/permisos',
+  '/config/columnas', '/config/importar', '/config/respaldo', '/config/auditoria', '/config/empresas', '/reportes', '/mejoras',
+  '/ayuda', '/admin'];
+
+// Clerk simulado: el "token" es el id del usuario (el servidor local lo acepta así)
+const clerkFalso = usuario => `window.Clerk = { loaded: true, user: { id: '${usuario}', updatePassword: async () => {} },
+  session: { getToken: async () => '${usuario}' }, addListener() { return () => {}; }, load: async () => {},
+  signOut: async () => {}, mountSignIn() {} };`;
+
+// Preparación por el API: el primer ingreso es el super administrador; los demás reciben su rol
+const api = (usuario, ruta, cuerpo) => fetch(new URL(`api/${ruta}`, BASE), {
+  method: 'POST', headers: { authorization: `Bearer ${usuario}`, 'content-type': 'application/json' }, body: JSON.stringify(cuerpo),
+}).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(`${ruta}: ${j.error}`); return j; });
+const [yo] = await api('user_admin', 'datos', { accion: 'list', tabla: 'profiles', eq: { id: 'user_admin' } });
+if (yo.rol !== 'superadmin') throw new Error('Use una base reiniciada (servidor-local.mjs --reiniciar): user_admin debe ser el primer ingreso.');
+for (const [u, rol] of [['user_lider', 'lider'], ['user_consulta', 'consulta']]) {
+  await api(u, 'datos', { accion: 'list', tabla: 'profiles', eq: { id: u } });
+  await api('user_admin', 'datos', { accion: 'update', tabla: 'profiles', id: u, data: { rol, nombre: u, tour_visto: true } });
+}
+await api('user_admin', 'datos', { accion: 'update', tabla: 'profiles', id: 'user_admin', data: { tour_visto: true } });
+const [proy] = await api('user_admin', 'datos', { accion: 'list', tabla: 'proyectos' });
+await api('user_admin', 'admin-usuarios', { accion: 'lideres', proyecto_id: proy.id, usuario_ids: ['user_admin', 'user_lider'] });
+const hoy = new Date(); hoy.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
+const semana = hoy.toISOString().slice(0, 10);
+await api('user_lider', 'datos', { accion: 'insert', tabla: 'actividades', data: [{ semana, responsable_id: 'user_lider', proyecto_id: proy.id, descripcion: 'Encofrado', hh_lu: 4, comprometida: true }] });
+await api('user_lider', 'datos', { accion: 'insert', tabla: 'restricciones', data: [{ proyecto_id: proy.id, descripcion: 'Falta plano', responsable_id: 'user_lider' }] });
+
+const opciones = process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {};
+const navegador = await chromium.launch(opciones);
+const errores = [];
+let pantallas = 0;
+
+for (const usuario of ['user_admin', 'user_lider', 'user_consulta']) {
+  const ctx = await navegador.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  const pagina = await ctx.newPage();
+  pagina.on('pageerror', e => errores.push(`[${usuario}] JS: ${e.message} @ ${pagina.url()}`));
+  pagina.on('console', m => {
+    if (m.type() === 'error' && !/favicon|fonts|ERR_FAILED|404/.test(m.text())) errores.push(`[${usuario}] consola: ${m.text()} @ ${pagina.url()}`);
+  });
+  pagina.on('response', async r => {
+    if (r.url().includes('/api/') && r.status() >= 400) {
+      const cuerpo = await r.text().catch(() => '');
+      const pedido = r.request().postData() || '';
+      // 403 por rol es esperado (consulta, líder); lo demás es una incompatibilidad
+      if (r.status() !== 403) errores.push(`[${usuario}] API ${r.status()}: ${cuerpo.slice(0, 200)} ← ${pedido.slice(0, 200)} @ ${pagina.url()}`);
+    }
+  });
+  await pagina.route('**/clerk.browser.js', r => r.fulfill({ contentType: 'text/javascript', body: clerkFalso(usuario) }));
+  await pagina.route('**/fonts.g*/**', r => r.abort());
+  for (const ruta of RUTAS) {
+    await pagina.goto(`${BASE}#${ruta}`);
+    await pagina.waitForTimeout(1200);
+    pantallas++;
+    const aviso = await pagina.locator('.toast.error, .aviso.error').first().textContent({ timeout: 300 }).catch(() => null);
+    if (aviso) errores.push(`[${usuario}] aviso de error: ${aviso.trim()} @ ${ruta}`);
+  }
+  await ctx.close();
+  console.log(`✔ ${usuario}`);
+}
+await navegador.close();
+console.log(`${pantallas} pantallas recorridas en modo real`);
+if (errores.length) { console.log([...new Set(errores)].join('\n')); process.exit(1); }
+console.log('SIN ERRORES');

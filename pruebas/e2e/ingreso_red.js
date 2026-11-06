@@ -16,7 +16,7 @@ const { chromium } = require('playwright');
     });
     await p.route('**/fonts.g*/**', r => r.abort());
     await p.goto(B); await p.waitForSelector('#l-email');
-    chk((await p.locator('.logo').first().innerText()).includes('LPS-GES'), `${caso}: el logo dice LPS-GES`);
+    chk((await p.locator('.logo').first().innerText()).includes('GyC'), `${caso}: el logo dice GyC`);
     await p.fill('#l-email', 'prueba@ejemplo.pe'); await p.fill('#l-clave', 'Clave-1234');
     await p.click('[data-f="ingresar"] button'); await p.waitForTimeout(3000);
     const diag = (await p.locator('.login-diagnostico').innerText().catch(() => '')).replace(/\s+/g, ' ');

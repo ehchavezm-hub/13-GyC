@@ -28,13 +28,19 @@ app/           Frontend (HTML/CSS/JS puro)
       programa-arranque.js  Checklist CR-PG-SGP-01-F1 (74 ítems)
 api/
   _lib/
-    db.js       Cliente Neon serverless (@neondatabase/serverless)
-    auth.js     Verifica JWT de Clerk
-    whitelist.js Tablas permitidas para evitar inyección SQL
-  datos.js      CRUD genérico (list/insert/upsert/update/remove/rpc)
-  admin-usuarios.js  Gestión de usuarios (solo admin/superadmin)
+    db.js        Cliente Neon serverless; cada request en transacción con app.current_user_id (mi_uid())
+    auth.js      Verifica JWT de Clerk; alta del perfil la primera vez (gyc_alta_usuario)
+    whitelist.js Tablas permitidas y su alcance por empresa (reemplaza la RLS de Supabase)
+    esquema.js   Columnas reales (information_schema): omite generadas, jsonb → JSON, '' → NULL
+    usuarios.js  puede() y eliminar usuario (compartido por datos y admin-usuarios)
+  datos.js      CRUD genérico (list/insert/upsert/update/updateWhere/remove/removeWhere/rpc)
+  admin-usuarios.js  Usuarios (Clerk), empresas, consola de la plataforma y mejoras
 db/
-  migrations/   001–034 archivos SQL — correr en orden en Neon SQL Editor
+  migrations/   000_gyc_neon_completo.sql + 035_compatibilidad_api.sql — correr en ese orden en Neon SQL Editor
+  legado-supabase/  001–034 originales de Supabase (solo referencia; NO ejecutar en Neon)
+  tests/run.sh  Prueba 000 + 035 en un PostgreSQL temporal y luego el API (pruebas/api)
+pruebas/
+  api/          Pruebas del API contra PostgreSQL local, servidor local y recorrido de pantallas en modo real
 ```
 
 ## Convenciones de código
@@ -44,8 +50,19 @@ db/
 - `subscribe()` es no-op (Realtime no disponible en Vercel)
 - Variables de config: `window.GYC_CONFIG` (no `LPSGT_CONFIG`)
 - localStorage keys: `gyc-*` (no `lpsgt-*`)
+- Toda tabla nueva que use el aplicativo debe agregarse a `api/_lib/whitelist.js` (con su alcance) y a una migración
+- `api.update()` devuelve un objeto; `insert`/`upsert`/`list` devuelven arreglos (en ambos adaptadores)
+
+## Pruebas locales (nunca contra producción)
+- `bash db/tests/run.sh` — migraciones + API en un PostgreSQL temporal
+- `DATABASE_URL_PRUEBAS=postgres://… node pruebas/api/servidor-local.mjs 8098 --reiniciar` y luego
+  `node pruebas/api/recorrido-real.mjs` — todas las pantallas en modo real con Clerk simulado
+- `node pruebas/humo.mjs` — todas las pantallas en modo demostración (servir `app/` en el puerto 8099)
 
 ## Despliegue
-1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`
-2. Neon: ejecutar migraciones `db/migrations/001_*.sql` … `034_*.sql` en orden en el SQL Editor
-3. Clerk: copiar Publishable Key → `app/config.js` → `clerkPublishableKey`
+1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY` (opcional `CLERK_JWT_KEY` para verificar sin red)
+2. Neon: ejecutar `db/migrations/000_gyc_neon_completo.sql` y luego `035_compatibilidad_api.sql` en el SQL Editor
+   (si la base ya tiene la 000, basta con la 035; se puede ejecutar más de una vez)
+3. Clerk: copiar Publishable Key → `app/config.js` → `clerkPublishableKey` (única fuente; `config.js` carga Clerk)
+4. La primera persona que ingresa queda como super administrador principal y propietaria de la plataforma;
+   las siguientes quedan "pendiente" hasta que un gestor les asigne rol

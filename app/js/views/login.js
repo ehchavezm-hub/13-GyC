@@ -41,7 +41,7 @@ function _montarClerk(el, continuar) {
   }
 
   window.Clerk.mountSignIn(el, {
-    afterSignInUrl: location.pathname + location.search,
+    fallbackRedirectUrl: location.pathname + location.search,
     appearance: { variables: { colorPrimary: '#e67e22', borderRadius: '8px' } },
   });
 
@@ -81,8 +81,34 @@ export function mostrarPendiente(raiz, mensaje) {
   caja.querySelector('[data-a="salir"]').onclick = async () => { await api.auth.salir(); location.reload(); };
 }
 
-// Con Clerk el cambio de contraseña lo gestiona el componente UserButton o el perfil de Clerk.
-// Esta función se mantiene para compatibilidad (main.js la importa) pero Clerk ya no usa el hash type=recovery.
-export function mostrarNuevaClave(raiz, _motivo = '') {
-  mostrarPendiente(raiz, 'Para cambiar su contraseña use el menú de perfil (esquina superior derecha) o solicítelo al administrador.');
+// Contraseña temporal asignada por el administrador (debe_cambiar_clave): la persona define la suya antes de entrar.
+// Con Clerk se cambia en el navegador (pide la contraseña temporal como actual); en demo solo se marca el perfil.
+export function mostrarNuevaClave(raiz, motivo = '') {
+  raiz.innerHTML = '';
+  const caja = html(`<div class="login"><div class="login-caja">
+    <div class="logo"><span>Gy<b style="color:var(--naranja)">C</b></span></div>
+    ${motivo ? `<div class="aviso warn" style="margin-top:14px">${esc(motivo)}</div>` : ''}
+    <form data-f="clave" style="display:grid;gap:10px;margin-top:14px">
+      ${modoDemo ? '' : '<label>Contraseña actual (la temporal)<input type="password" name="actual" required autocomplete="current-password"></label>'}
+      <label>Nueva contraseña<input type="password" name="nueva" required minlength="8" autocomplete="new-password"></label>
+      <label>Repita la nueva contraseña<input type="password" name="repetir" required minlength="8" autocomplete="new-password"></label>
+      <button class="btn btn-primario" type="submit">Guardar y continuar</button>
+    </form>
+    <p class="nota" style="text-align:center;margin-top:12px"><a href="#" data-a="salir">Cerrar sesión</a></p>
+  </div></div>`);
+  raiz.append(caja);
+  const form = caja.querySelector('[data-f="clave"]');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(form));
+    if (d.nueva !== d.repetir) return error('Las contraseñas no coinciden.');
+    if (String(d.nueva).length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
+    const boton = form.querySelector('button');
+    boton.disabled = true;
+    try {
+      await api.auth.cambiarClave(d.nueva, d.actual);
+      location.reload();
+    } catch (err) { error(mensajeError(err)); boton.disabled = false; }
+  });
+  caja.querySelector('[data-a="salir"]').onclick = async e => { e.preventDefault(); await api.auth.salir(); location.reload(); };
 }
