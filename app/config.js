@@ -6,3 +6,12 @@ window.GYC_CONFIG = {
   clerkPublishableKey: 'pk_test_YWRhcHRlZC10cm9sbC0zNDIxLmNsZXJrLmFjY291bnRzLmRldiQ',
   apiBase: '/api',
 };
+
+// Clerk v5 CDN requiere data-clerk-publishable-key en el <script> antes de ejecutarse.
+// config.js corre sincrónicamente antes de que el script async de Clerk descargue y se ejecute.
+(function () {
+  var key = window.GYC_CONFIG.clerkPublishableKey;
+  if (!key) return;
+  var el = document.getElementById('clerk-js');
+  if (el) el.setAttribute('data-clerk-publishable-key', key);
+})();
