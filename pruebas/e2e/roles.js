@@ -1,0 +1,33 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button');
+  console.log('  selector demo:', (await p.textContent('.usuarios-demo')).replace(/\s+/g, ' ').slice(0, 260));
+  await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(BASE + '?demo#/config/usuarios'); await p.waitForTimeout(1200);
+  await p.click('tr:has-text("Bruno Salas") [data-editar]'); await p.waitForTimeout(300);
+  const ops = await p.$$eval('.modal select[name="rol"] option', o => o.map(x => x.textContent));
+  console.log('  opciones de rol:', ops.join(' | '));
+  chk(ops.includes('Responsable del equipo') && ops.includes('Responsable de actividad') && ops.includes('Responsable de proceso') && ops.includes('Líder de especialidad') && !ops.includes('Líder de proceso'), 'roles nuevos y renombrado');
+  await p.selectOption('.modal select[name="rol"]', 'resp_proceso'); await p.click('.modal-pie button:has-text("Guardar")'); await p.waitForTimeout(1000);
+  chk((await p.textContent('tr:has-text("Bruno Salas")')).includes('Responsable de proceso'), 'cambio de rol guardado');
+  await p.goto(BASE + '?demo#/config/permisos'); await p.waitForTimeout(1000);
+  console.log('  columnas permisos:', (await p.$$eval('table.simple tr:first-child th', t => t.map(x => x.textContent))).join(' | '));
+  await p.screenshot({ path: 'shots3/permisos.png' });
+  // Diego (resp_actividad) entra y planifica
+  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.goto(BASE + '?demo&x=6#/'); await p.waitForSelector('.usuarios-demo button');
+  await p.click('.usuarios-demo button:has-text("Diego Paredes")'); await p.waitForTimeout(1200);
+  await p.goto(BASE + '?demo#/plan'); await p.waitForTimeout(1300);
+  chk((await p.$$eval('.grilla-tabla', g => g.length)) === 1, 'responsable de actividad ve su plan semanal');
+  await p.goto(BASE + '?demo#/proyectos'); await p.waitForTimeout(1000);
+  chk(!(await p.$('[data-a="nuevo"]')), 'responsable de actividad no propone proyectos');
+  console.log(errs.length ? 'ERRORES:\n' + errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();

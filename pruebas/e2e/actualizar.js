@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1400, height: 800 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&u=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(2500);
+  console.log('caches antes:', await p.evaluate(async () => (await caches.keys()).join(',')));
+  await p.click('[data-a="actualizar-menu"]'); await p.waitForTimeout(300);
+  await p.screenshot({ path: 'shots3/actualizar.png', clip: { x: 900, y: 0, width: 500, height: 160 } });
+  await p.click('[data-op="forzado"]'); await p.waitForTimeout(500); await p.waitForLoadState(); await p.waitForTimeout(1500);
+  console.log('url tras forzado:', p.url());
+  console.log('sigue con sesión:', !!(await p.$('.cabecera')));
+  await p.click('[data-a="actualizar"]'); await p.waitForTimeout(1500);
+  console.log('tras recarga normal:', !!(await p.$('.cabecera')));
+  console.log(errs.length ? errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();

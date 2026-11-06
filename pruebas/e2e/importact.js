@@ -1,0 +1,28 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
+  const db = () => p.evaluate(() => { const d = JSON.parse(localStorage.getItem('lpsgt-demo-db')); const v = id => d.lista_valores.find(x => x.id === id)?.valor || null;
+    return Object.fromEntries(d.proyectos.filter(x => ['D-101', 'D-102', 'N-500'].includes(x.codigo)).map(x => [x.codigo, { n: x.nombre_corto, g: v(x.gerencia_id), f: v(x.fase_id), pa: v(x.pais_id), i: x.fecha_inicio, fin: x.fecha_fin }])); });
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(BASE + '?demo#/proyectos'); await p.waitForTimeout(1500);
+  const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('[data-a="importar"]')]);
+  await fc.setFiles(__dirname + '/in/proyectos_actualizar.xlsx'); await p.waitForTimeout(1500);
+  const txt = (await p.textContent('.modal .modal-cuerpo')).replace(/\s+/g, ' ');
+  console.log('  ' + txt.slice(0, 520));
+  chk(txt.includes('Gerencia ← “Gerencia responsable”') && txt.includes('Inicio ← “Fecha de inicio”'), 'reconoce títulos que contienen la palabra clave');
+  chk(txt.includes('2 se actualizarán'), 'vista previa: 2 existentes se actualizarán');
+  await p.screenshot({ path: 'shots3/import_act.png' });
+  await p.click('.modal-pie button:has-text("Importar")'); await p.waitForTimeout(2500);
+  const d = await db(); console.log('  ' + JSON.stringify(d));
+  chk(d['D-101'].g === 'Gerencia de Obras Industriales' && d['D-101'].f === 'Cierre' && d['D-101'].pa === 'Chile' && d['D-101'].i === '2025-03-01', 'D-101 actualizado con gerencia, fase, país y fechas');
+  chk(d['D-102'].g === 'Gerencia de Edificaciones' && d['D-102'].n === 'Planta Concentradora Demo', 'D-102: gerencia nueva agregada y aplicada; nombre conservado');
+  chk(d['N-500'] && d['N-500'].g === 'Gerencia de Obras Civiles', 'N-500 creado');
+  console.log(errs.length ? 'ERRORES:\n' + errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();

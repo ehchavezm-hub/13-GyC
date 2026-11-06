@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+const B = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:has-text("Bruno Salas")'); await p.waitForTimeout(1200);
+  await p.goto(B + '?demo&y=1#/lookahead'); await p.waitForTimeout(2000);
+  console.log('botón menú:', await p.locator('[data-a="nuevo-proy"]').innerText());
+  await p.screenshot({ path: 'shots98/agregar-lateral.png', clip: { x: 0, y: 480, width: 300, height: 200 } });
+  await p.click('.tabulator-col[tabulator-field="proyecto_id"] .tabulator-col-title', { button: 'right' }); await p.waitForTimeout(300);
+  const items = await p.$$eval('.tabulator-menu .tabulator-menu-item', i => i.map(x => x.textContent.trim()));
+  console.log('menú Proyecto:', items.join(' | '));
+  await p.locator('.tabulator-menu .tabulator-menu-item', { hasText: 'Agregar proyecto' }).click(); await p.waitForTimeout(500);
+  console.log('formulario abierto:', await p.locator('.modal [name="codigo"]').count() === 1 ? 'OK' : 'FALLA');
+  await p.keyboard.press('Escape');
+  console.log(errs.length ? errs : 'SIN ERRORES'); await b.close();
+})();

@@ -1,0 +1,32 @@
+const { chromium } = require('playwright');
+const SH = require('path').join(__dirname, 'salida') + '/' + '';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(B + '?demo#/plan'); await p.waitForTimeout(1500);
+  console.log('título:', await p.locator('.menu-proy-cab h3').innerText());
+  await p.locator('.proy-lista .proy-item', { hasText: 'Puente Demo' }).click(); await p.waitForTimeout(500);
+  await p.click('[data-a="nuevo-proy"]'); await p.waitForTimeout(400);
+  console.log('formulario:', await p.locator('.modal h2, .modal .modal-titulo').first().innerText(), '· campos:', await p.locator('.modal [name]').evaluateAll(es => es.map(e => e.name).join(',')));
+  console.log('proyecto sugerido:', await p.locator('.modal [name="padre_id"]').evaluate(s => s.selectedOptions[0]?.textContent));
+  await p.locator('.modal [name="codigo"]').fill('D-103.1'); await p.locator('.modal [name="nombre_corto"]').fill('Tramo Norte');
+  await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(1000);
+  const r = await p.evaluate(async () => { const s = await import('./js/core/store.js'); const x = s.store.proyectos.find(y => y.nombre_corto === 'Tramo Norte'); const pa = s.store.proyectos.find(y => y.id === x?.padre_id);
+    return { creado: !!x, padre: pa?.nombre_corto, gerenciaHeredada: !!x?.gerencia_id && x.gerencia_id === pa?.gerencia_id, enLPS: s.opcionesProyectos().some(o => /Tramo Norte/.test(o.label)) }; });
+  console.log('resultado:', r);
+  console.log('en el menú:', (await p.locator('.proy-lista').innerText()).replace(/\n+/g, ' | ').slice(0, 200));
+  // sin proyecto elegido: hay que escogerlo (obligatorio)
+  await p.evaluate(async () => (await import('./js/core/store.js')).seleccionarProyecto(''));
+  await p.click('[data-a="nuevo-proy"]'); await p.waitForTimeout(400);
+  await p.locator('.modal [name="codigo"]').fill('X-1'); await p.locator('.modal [name="nombre_corto"]').fill('Sin padre');
+  await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(600);
+  console.log('sin proyecto elegido, el formulario sigue abierto:', await p.locator('.modal').count() > 0, '· creado:', await p.evaluate(async () => (await import('./js/core/store.js')).store.proyectos.some(y => y.nombre_corto === 'Sin padre')));
+  const lat = await p.locator('.menu-proy').boundingBox(); await p.screenshot({ path: SH + 'q10.png', clip: { x: lat.x, y: lat.y - 60, width: lat.width, height: 420 } });
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

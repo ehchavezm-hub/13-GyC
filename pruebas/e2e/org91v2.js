@@ -1,0 +1,27 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const ctx = await b.newContext({ viewport: { width: 1500, height: 950 } });
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await ctx.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
+  await p.goto(B + '?demo&y=1#/config/usuarios'); await p.waitForTimeout(2000);
+  await p.click('button:has-text("Generar desde usuarios")'); await p.waitForTimeout(600);
+  if (await p.locator('.modal .btn-primario').count()) await p.locator('.modal .btn-primario').click();
+  await p.waitForTimeout(1500);
+  console.log('nodos en pantalla:', await p.locator('.org-nodo').count());
+  await p.click('[data-a="pdf-usuarios"]'); await p.waitForTimeout(1500);
+  const info = await p.evaluate(() => { const document = window.document.querySelector('.vista-pdf iframe').contentDocument; return ({ th: [...document.querySelectorAll('th')].map(x => x.textContent.trim()), cols: [...document.querySelectorAll('col')].map(c => c.style.width), rect: document.querySelectorAll('svg rect').length, path: document.querySelectorAll('svg path').length, svgW: document.querySelector('svg')?.getBoundingClientRect().width }); });
+  console.log('PDF cabeceras:', info.th.join(' | '));
+  console.log('anchos:', info.cols.join(' '));
+  console.log('organigrama en PDF: tarjetas', info.rect, '· líneas', info.path, '· ancho', Math.round(info.svgW));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  await p.goto(B + '?demo&y=2#/reportes'); await p.waitForTimeout(1500);
+  await p.click('[data-r="equipo"]'); await p.waitForTimeout(1500);
+  console.log('Reporte: tarjetas en vista previa', await p.evaluate(() => document.querySelector('[data-prev]').contentDocument.querySelectorAll('svg rect').length));
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

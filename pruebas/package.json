@@ -1,0 +1,13 @@
+{
+  "name": "lpsgt-pruebas",
+  "private": true,
+  "description": "Pruebas automáticas del aplicativo (se ejecutan en GitHub Actions)",
+  "type": "module",
+  "scripts": {
+    "humo": "node humo.mjs",
+    "librerias": "node verificar-librerias.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

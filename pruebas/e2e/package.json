@@ -1,0 +1,6 @@
+{
+  "name": "lpsgt-e2e",
+  "private": true,
+  "type": "commonjs",
+  "description": "Pruebas de pantallas en modo demostración (una por pedido u observación)"
+}

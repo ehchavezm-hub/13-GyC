@@ -1,0 +1,33 @@
+const { chromium } = require('playwright');
+const SH = require('path').join(__dirname, 'salida') + '/' + '';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
+  await p.click('[data-a="nueva"]'); await p.waitForTimeout(400);
+  console.log('formulario:', (await p.locator('.modal .admin-quien').innerText()).replace(/\s+/g, ' '));
+  await p.screenshot({ path: SH + 'a10_form.png' });
+  await p.locator('.modal [name="nombre_empresa"]').fill('WSP Demo'); await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(800);
+  console.log('cabeceras:', (await p.locator('.tabla-empresas thead').innerText()).replace(/\s+/g, ' '));
+  console.log('fila:', (await p.locator('.tabla-empresas tr:has-text("WSP Demo")').innerText()).replace(/\s+/g, ' '));
+  await p.screenshot({ path: SH + 'a10_tabla.png' });
+  // eliminarla enseguida (modo demo)
+  await p.evaluate(async () => { const { api } = await import('./js/data/api.js');
+    const { areas } = await api.adminUsuarios('plataforma'); const a = areas.find(x => x.nombre === 'WSP Demo');
+    await api.adminUsuarios('estructura', { tabla: 'proyectos', area_id: a.id, datos: { codigo: 'W-1', nombre_corto: 'Proyecto WSP' } }); });
+  await p.click('.admin-item:has-text("Resumen")'); await p.waitForTimeout(500); await p.click('.admin-item:has-text("Empresas")'); await p.waitForTimeout(700);
+  await p.locator('.tabla-empresas tr:has-text("WSP Demo") [data-eliminar]').click(); await p.waitForTimeout(300);
+  console.log('aviso:', (await p.locator('.modal .aviso').innerText()).replace(/\s+/g, ' ').slice(0, 160));
+  await p.locator('.modal [name="confirmacion"]').fill('ELIMINAR'); await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(500);
+  console.log('con texto equivocado sigue:', await p.locator('.tabla-empresas tr:has-text("WSP Demo")').count());
+  await p.locator('.tabla-empresas tr:has-text("WSP Demo") [data-eliminar]').click(); await p.waitForTimeout(300);
+  await p.locator('.modal [name="confirmacion"]').fill('WSP Demo'); await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(800);
+  console.log('tras eliminar:', await p.locator('.tabla-empresas tr:has-text("WSP Demo")').count());
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

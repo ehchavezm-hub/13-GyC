@@ -1,0 +1,21 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ acceptDownloads: true, viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(B + '?demo#/plan'); await p.waitForTimeout(1500);
+  console.log('XLSX al arrancar:', await p.evaluate(() => typeof window.XLSX), '· Chart:', await p.evaluate(() => typeof window.Chart));
+  const [d] = await Promise.all([p.waitForEvent('download'), p.click('[data-a="excel"]')]);
+  const ruta = await d.path();
+  console.log('XLSX tras exportar:', await p.evaluate(() => XLSX.version));
+  const filas = await p.evaluate(async () => 0);
+  const fs = require('fs'); const buf = fs.readFileSync(ruta);
+  const n = await p.evaluate(arr => { const wb = XLSX.read(new Uint8Array(arr), { type: 'array' }); const ws = wb.Sheets[wb.SheetNames[0]]; const r = XLSX.utils.sheet_to_json(ws, { header: 1 }); return [r.length, r[0].slice(0, 9).join(' | ')]; }, [...buf]);
+  console.log('Excel exportado: filas', n[0], 'cabecera:', n[1]);
+  console.log(errs.length ? errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();

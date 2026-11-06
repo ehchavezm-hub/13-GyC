@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const ctx = await b.newContext({ viewport: { width: 1500, height: 950 }, acceptDownloads: true });
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await ctx.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(4)'); await p.waitForTimeout(800);
+  await p.goto(B + '?demo&y=1#/reportes'); await p.waitForTimeout(2000);
+  await p.click('[data-r="lookahead"]'); await p.waitForTimeout(1200);
+  console.log('Reportes, archivo:', await p.inputValue('[data-o="archivo"]'));
+  await p.evaluate(() => { const f = document.querySelector('[data-prev]'); f.contentWindow.print = () => { window.__t = document.title; }; });
+  await p.click('[data-a="pdf"]'); await p.waitForTimeout(300);
+  console.log('Título de la página al imprimir:', await p.evaluate(() => window.__t));
+  await p.goto(B + '?demo&y=2#/lookahead'); await p.waitForTimeout(1800);
+  await p.locator('button:has-text("PDF")').first().click(); await p.waitForTimeout(1500);
+  console.log('PDF del Look Ahead (pantalla):', await p.inputValue('.vista-pdf [data-o="archivo"]')); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  const [d] = await Promise.all([p.waitForEvent('download'), p.click('[data-a="excel"]')]);
+  console.log('Excel:', d.suggestedFilename());
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

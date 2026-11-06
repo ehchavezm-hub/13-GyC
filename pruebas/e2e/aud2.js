@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(B + '?demo#/reportes'); await p.waitForTimeout(1200);
+  await p.evaluate(async () => { const { api } = await import('./js/data/api.js'); const s = await import('./js/core/store.js');
+    const P = s.store.proyectos.find(x => x.nombre_corto === 'Hospital Demo Norte');
+    await api.insert('proyectos', { area_id: s.store.area.id, codigo: 'D-101.1', nombre_corto: 'Torre A', estado: 'activo', padre_id: P.id }); await s.cargarCatalogo(); });
+  await p.click('[data-r="proyectos"]'); await p.waitForTimeout(1500);
+  const txt = await p.evaluate(() => { const f = document.querySelector('iframe'); const d = f?.contentDocument || document; return d.body.innerText; });
+  const i = txt.indexOf('D-101');
+  console.log(txt.slice(i, i + 260).replace(/\s+/g, ' '));
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

@@ -1,0 +1,84 @@
+# Aplica migraciones SQL en Supabase sin entrar al SQL Editor (API de administración de Supabase).
+# - Al publicar en main una migración nueva o modificada en supabase/migrations/, se aplica sola.
+# - A mano (Actions → Migraciones Supabase → Run workflow): aplica los archivos indicados.
+# Las migraciones 015 en adelante se pueden ejecutar más de una vez sin dañar nada.
+# Secrets requeridos (los mismos de "Funciones Supabase"):
+#   SUPABASE_ACCESS_TOKEN  token personal de https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_REF   identificador del proyecto (el texto xxxx de https://xxxx.supabase.co)
+name: Migraciones Supabase
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**']
+  workflow_dispatch:
+    inputs:
+      archivos:
+        description: 'Migraciones a aplicar (nombres separados por espacio)'
+        required: true
+        default: '015_endurecimiento.sql 016_restricciones_estado_la.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migraciones-supabase
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verificar configuración
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            msg="Faltan los secrets SUPABASE_ACCESS_TOKEN y SUPABASE_PROJECT_REF (Settings → Secrets and variables → Actions)."
+            # A mano es un error; al publicar solo se avisa (la migración se puede aplicar después)
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
+            echo "::notice::$msg No se aplicó nada."; echo "SIN_CONFIG=1" >> "$GITHUB_ENV"
+          fi
+      - name: Elegir migraciones
+        if: env.SIN_CONFIG != '1'
+        env:
+          ENTRADA: ${{ github.event.inputs.archivos }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            lista="$ENTRADA"
+          else
+            lista=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- supabase/migrations/ | xargs -r -n1 basename | tr '\n' ' ')
+          fi
+          for f in $lista; do
+            case "$f" in *[!A-Za-z0-9_.-]*|"") echo "::error::Nombre no válido: $f"; exit 1;; esac
+            [ -f "supabase/migrations/$f" ] || { echo "::error::No existe supabase/migrations/$f"; exit 1; }
+          done
+          echo "LISTA=$lista" >> "$GITHUB_ENV"
+          echo "Migraciones a aplicar: ${lista:-ninguna}"
+      - name: Aplicar
+        if: env.SIN_CONFIG != '1'
+        run: |
+          for f in $LISTA; do
+            echo "▶ $f"
+            jq -Rs '{query: .}' "supabase/migrations/$f" > cuerpo.json
+            codigo=$(curl -sS -o respuesta.json -w '%{http_code}' -X POST \
+              "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
+              --data-binary @cuerpo.json)
+            if [ "$codigo" -ge 300 ]; then
+              echo "::error::$f falló (HTTP $codigo): $(head -c 2000 respuesta.json)"; exit 1
+            fi
+            echo "✔ $f aplicada"
+          done
+          rm -f cuerpo.json respuesta.json
+      - name: Verificar
+        if: env.SIN_CONFIG != '1' && env.LISTA != ''
+        run: |
+          jq -n '{query: "select (select count(*) from pg_trigger where tgname = '\''restriccion_estado_la'\'') as trigger_016, (select count(*) from pg_proc where proname = '\''tg_misma_area'\'') as funcion_015"}' > cuerpo.json
+          curl -sS -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @cuerpo.json
+          rm -f cuerpo.json

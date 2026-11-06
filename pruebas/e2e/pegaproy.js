@@ -1,0 +1,23 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log('  consola:', m.text().slice(0, 200)); });
+  await p.route('**/fonts.g*/**', r => r.abort());
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(BASE + '?demo#/proyectos'); await p.waitForTimeout(1300);
+  const tsv = 'C1\tProyecto Uno\tProyecto Uno completo\tGerencia de Obras Civiles\tConstrucción\tActivo\tPerú\nC2\tProyecto Dos\tProyecto Dos completo\tGerencia de Minería\tDiseño\tActivo\tChile\n';
+  await p.click('[data-a="pegar"]'); await p.waitForTimeout(300);
+  console.log('  orden:', await p.textContent('.modal .nota'));
+  await p.fill('.modal textarea', tsv);
+  await p.click('.modal-pie button:has-text("Agregar filas")');
+  await p.waitForTimeout(2500);
+  console.log('  toasts:', await p.$$eval('.toast', t => t.map(x => x.textContent).join(' | ')));
+  const d = await p.evaluate(() => Tabulator.findTable('.grilla-tabla')[0].getData().filter(r => /^C\d/.test(r.codigo || '')).map(r => [r.id ? 'guardado' : 'SIN GUARDAR', r.codigo, r.nombre_corto, r.gerencia_id, r.fase_id, r.estado, r.pais_id]));
+  console.log(JSON.stringify(d, null, 0));
+  console.log(errs.length ? errs.join('\n') : 'SIN ERRORES JS');
+  await b.close();
+})();

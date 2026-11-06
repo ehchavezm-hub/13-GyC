@@ -1,0 +1,23 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1450, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
+  await p.goto(B + '?demo&y=1#/lookahead'); await p.waitForTimeout(2000);
+  const S = require('path').join(__dirname, 'salida') + '/' + '';
+  await p.screenshot({ path: S + 'tab_la.png' });
+  console.log('grilla visible:', await p.locator('[data-grilla]').isVisible(), '· carga visible:', await p.locator('[data-carga]').isVisible(), '· alerta:', await p.locator('[data-alerta]').textContent());
+  await p.click('[data-v="carga"]'); await p.waitForTimeout(500);
+  await p.screenshot({ path: S + 'tab_carga.png' });
+  console.log('tras clic: grilla visible:', await p.locator('[data-grilla]').isVisible(), '· carga visible:', await p.locator('[data-carga]').isVisible());
+  await p.reload(); await p.waitForTimeout(1800);
+  console.log('recuerda pestaña:', await p.locator('[data-carga]').isVisible());
+  await p.click('[data-v="la"]'); await p.waitForTimeout(600);
+  console.log('vuelve a grilla, filas visibles:', await p.locator('.tabulator-row').count() > 3);
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

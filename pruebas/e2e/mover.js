@@ -1,0 +1,40 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1600, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  p.on('dialog', d => d.accept());
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.evaluate(async () => { const { api } = await import('./js/data/api.js'); const { semillaEmpresa } = await import('./js/data/catalogos.js');
+    const { area_id } = await api.adminUsuarios('crear_empresa', { nombre_empresa: 'Constructora Demo', semilla: semillaEmpresa() });
+    await api.adminUsuarios('estructura', { tabla: 'portafolios', area_id, datos: { nombre: 'Obras Industriales' } });
+    const { store } = await import('./js/core/store.js');
+    await api.adminUsuarios('estructura', { tabla: 'proyectos', area_id: store.area.id, datos: { codigo: 'NV-1', nombre_corto: 'Proyecto nuevo' } }); });
+  await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
+  await p.click('.admin-item:has-text("Estructura de todas")'); await p.waitForTimeout(700);
+  await p.click('[data-vista="arbol"]'); await p.waitForTimeout(400);
+  // 1) proyecto sin trabajo → se mueve
+  await p.click('.org-proyecto:has-text("Proyecto nuevo")'); await p.waitForTimeout(400);
+  console.log('campos:', await p.locator('.modal [name]').evaluateAll(es => es.map(e => e.name).join(',')));
+  const vis = async () => p.locator('.modal [name="portafolio_id"] option:not([hidden])').allInnerTexts();
+  console.log('portafolios visibles (empresa actual):', await vis());
+  await p.locator('.modal [name="area_id"]').selectOption({ label: 'Constructora Demo' }); await p.waitForTimeout(200);
+  console.log('portafolios visibles (Constructora Demo):', await vis());
+  await p.locator('.modal [name="portafolio_id"]').selectOption({ label: 'Obras Industriales' });
+  await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(400);
+  await p.locator('.modal').last().locator('.btn-primario, .btn-peligro').last().click(); await p.waitForTimeout(900);
+  const donde = await p.evaluate(async () => { const { api } = await import('./js/data/api.js'); const d = await api.adminUsuarios('plataforma');
+    const pr = d.proyectos.find(x => x.codigo === 'NV-1'); return d.areas.find(a => a.id === pr.area_id).nombre + ' / ' + d.portafolios.find(f => f.id === pr.portafolio_id)?.nombre; });
+  console.log('proyecto ahora en:', donde);
+  // 2) proyecto con actividades → bloqueado
+  await p.click('.org-proyecto:has-text("Hospital Demo Norte")'); await p.waitForTimeout(400);
+  await p.locator('.modal [name="area_id"]').selectOption({ label: 'Constructora Demo' });
+  await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(400);
+  await p.locator('.modal').last().locator('.btn-primario, .btn-peligro').last().click(); await p.waitForTimeout(700);
+  console.log('mensaje:', (await p.locator('.toast').allInnerTexts()).filter(t => /mover/i.test(t)).join(' | ').slice(0, 200));
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

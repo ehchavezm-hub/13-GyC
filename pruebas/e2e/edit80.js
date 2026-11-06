@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1300, height: 900 } })).newPage();
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
+  await p.goto(B + '?demo&y=1#/lookahead'); await p.waitForTimeout(1800);
+  const largo = 'Planificar El proyecto fue concebido como un último impulso promocional para American Life ante su bajo desempeño comercial y reactivar la carrera musical. Según la cantante, la idea de este material era mantener vigente el álbum de estudio.';
+  const celda = p.locator('.tabulator-row:has([tabulator-field="descripcion"])').first().locator('[tabulator-field="descripcion"]');
+  await celda.dblclick(); await p.waitForTimeout(200); await p.keyboard.press('Control+A'); await p.keyboard.type(largo); await p.keyboard.press('Enter');
+  await p.waitForTimeout(1200);
+  await celda.dblclick(); await p.waitForTimeout(600);
+  const box = await p.locator('.tabulator-cell textarea').boundingBox();
+  const ws = await p.locator('.tabulator-cell textarea').evaluate(e => getComputedStyle(e).whiteSpace + ' h=' + e.offsetHeight + ' sh=' + e.scrollHeight + ' w=' + e.offsetWidth);
+  console.log(ws);
+  await p.screenshot({ path: require('path').join(__dirname, 'salida') + '/' + 'edit80.png', clip: { x: Math.max(0, box.x - 300), y: Math.max(0, box.y - 60), width: 800, height: Math.min(500, box.height + 120) } });
+  await b.close();
+})();

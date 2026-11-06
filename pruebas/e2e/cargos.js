@@ -1,0 +1,31 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 900 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  // datos viejos sin la lista: se agrega sola
+  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db')); const l = db.listas.find(x => x.clave === 'cargos'); db.listas = db.listas.filter(x => x !== l); db.lista_valores = db.lista_valores.filter(v => v.lista_id !== l.id); localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); });
+  await p.goto(BASE + '?demo&y=1#/config/listas?lista=cargos'); await p.waitForTimeout(1500);
+  const grupo = await p.$eval('[data-l] option[value="cargos"]', o => o.parentElement.label);
+  const n = await p.evaluate(() => Tabulator.findTable('.grilla-tabla')[0].getDataCount());
+  chk(grupo === 'Equipo y organización' && n === 6, `lista Cargos con 6 valores en el grupo "${grupo}"`);
+  await p.goto(BASE + '?demo#/config/usuarios'); await p.waitForTimeout(1200);
+  chk((await p.$$eval('table.simple tr:first-child th', t => t.map(x => x.textContent)))[1] === 'Cargo', 'columna Cargo en Usuarios');
+  await p.click('tr:has-text("Ana Torres") [data-editar]'); await p.waitForTimeout(300);
+  const ops = await p.$$eval('.modal select[name="cargo_id"] option', o => o.map(x => x.textContent));
+  console.log('  opciones:', ops.join(' | '));
+  await p.selectOption('.modal select[name="cargo_id"]', { label: 'Líder BIM' }); await p.click('.modal-pie button:has-text("Guardar")'); await p.waitForTimeout(1200);
+  chk((await p.textContent('tr:has-text("Ana Torres")')).includes('Líder BIM'), 'cargo asignado y visible en la tabla');
+  await p.click('[data-a="nuevo"]'); await p.waitForTimeout(300);
+  chk(!!(await p.$('.modal select[name="cargo_id"]')), 'Nuevo usuario tiene Cargo');
+  await p.click('.modal [data-cerrar]');
+  await p.goto(BASE + '?demo#/equipo'); await p.waitForTimeout(1300);
+  chk((await p.textContent('[data-tabla]')).includes('Líder BIM'), 'Equipo y capacidad muestra el cargo');
+  console.log(errs.length ? 'ERRORES:\n' + errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();

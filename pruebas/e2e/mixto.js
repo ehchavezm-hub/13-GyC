@@ -1,0 +1,31 @@
+const { chromium } = require('playwright');
+const SH = require('path').join(__dirname, 'salida') + '/' + '';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1600, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const B = 'http://localhost:8099/';
+  await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
+  const guardar = async () => { await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(600); };
+  const llenar = async (n, v) => { const el = p.locator(`.modal [name="${n}"]`).first(); const tag = await el.evaluate(e => e.tagName); if (tag === 'SELECT') await el.selectOption({ label: v }); else await el.fill(v); };
+  await p.click('.admin-item:has-text("Estructura de todas")'); await p.waitForTimeout(800);
+  const emp = p.locator('.est-empresa').first();
+  await emp.locator('[data-nuevo="portafolios"]').click(); await p.waitForTimeout(300); await llenar('nombre', 'Obras Industriales'); await guardar();
+  for (const g of ['Obras sur', 'Obras centro']) { await p.locator('.est-portafolio:has-text("Obras Industriales") [data-nuevo="programas"]').first().click(); await p.waitForTimeout(300); await llenar('nombre', g); await guardar(); }
+  const nuevo = async (sel, cod, nom) => { await p.locator(sel).first().click(); await p.waitForTimeout(300); await llenar('codigo', cod); await llenar('nombre_corto', nom); await guardar(); };
+  await nuevo('.est-programa:has-text("Obras sur") [data-nuevo="proyectos"]', 'S-1', 'EPC Area Seca');
+  await nuevo('.est-programa:has-text("Obras sur") [data-nuevo="proyectos"]', 'S-2', 'EPC Area Humeda');
+  await nuevo('.est-programa:has-text("Obras centro") [data-nuevo="proyectos"]', 'C-1', 'TC 06');
+  await nuevo('.est-portafolio:has-text("Obras Industriales") [data-nuevo="proyectos"]', 'P-1', 'Directo 1');
+  await nuevo('.est-portafolio:has-text("Obras Industriales") [data-nuevo="proyectos"]', 'P-2', 'Directo 2');
+  await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
+  await p.click('.admin-item:has-text("Estructura de todas")'); await p.waitForTimeout(800);
+  await p.click('[data-vista="arbol"]'); await p.waitForTimeout(500);
+  await p.locator('.org-arbol').first().screenshot({ path: SH + 'mixto.png' });
+  console.log('cajas:', await p.locator('.org-caja').count());
+  console.log(errs.length ? errs : 'SIN ERRORES');
+  await b.close();
+})();

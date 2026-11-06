@@ -1,0 +1,50 @@
+const { chromium } = require('playwright');
+const BASE = 'http://localhost:8099/';
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
+  const p = await (await b.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  p.on('console', m => { if (m.type() === 'error' && !/404|ERR_FAILED|fonts/.test(m.text())) errs.push(m.text()); });
+  await p.route('**/fonts.g*/**', r => r.abort());
+  const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
+  await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
+  await p.goto(BASE + '?demo&u=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
+  await p.goto(BASE + '?demo#/config/usuarios'); await p.waitForTimeout(1200);
+  await p.click('[data-a="nuevo"]'); await p.waitForTimeout(400);
+  const clave = await p.inputValue('.modal input[name="clave"]');
+  chk(clave.length === 10, 'contraseña temporal generada: ' + clave);
+  await p.fill('.modal input[name="nombre"]', 'Hugo Prueba');
+  await p.fill('.modal input[name="email"]', 'Hugo@Prueba.pe');
+  await p.fill('.modal input[name="codigo"]', 'HP');
+  await p.screenshot({ path: 'shots3/u_nuevo.png' });
+  await p.click('.modal-pie button:has-text("Crear usuario")'); await p.waitForTimeout(1200);
+  const cred = await p.textContent('.credenciales').catch(() => '');
+  chk(cred.includes('hugo@prueba.pe') && cred.includes(clave), 'credenciales mostradas');
+  await p.screenshot({ path: 'shots3/u_cred.png' });
+  await p.click('.modal-pie button:has-text("Cerrar")');
+  chk((await p.textContent('table.simple')).includes('Hugo Prueba'), 'usuario en la tabla');
+  // duplicado
+  await p.click('[data-a="nuevo"]'); await p.waitForTimeout(300);
+  await p.fill('.modal input[name="nombre"]', 'Otro'); await p.fill('.modal input[name="email"]', 'hugo@prueba.pe');
+  await p.click('.modal-pie button:has-text("Crear usuario")'); await p.waitForTimeout(800);
+  chk((await p.$$eval('.toast', t => t.map(x => x.textContent).join('|'))).includes('Ya existe'), 'rechaza correo duplicado');
+  await p.click('.modal [data-cerrar]');
+  // restablecer de otro (botón 🔑 en la fila de Ana Torres)
+  const nBtn = await p.$$eval('[data-clave]', b => b.length);
+  console.log('  botones 🔑:', nBtn);
+  await p.click('tr:has-text("Ana Torres") [data-clave]'); await p.waitForTimeout(300);
+  await p.click('.modal-pie button:has-text("Restablecer")'); await p.waitForTimeout(800);
+  chk(!!(await p.$('.credenciales')), 'restablecer muestra credenciales');
+  await p.click('.modal-pie button:has-text("Cerrar")');
+  // ingresar como Hugo
+  const id = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).profiles.find(x => x.email === 'hugo@prueba.pe').id);
+  await p.evaluate(id => localStorage.setItem('lpsgt-demo-usuario', id), id);
+  await p.goto(BASE + '?demo&x=1#/'); await p.waitForTimeout(1200);
+  chk((await p.textContent('body')).includes('contraseña temporal'), 'pide cambiar contraseña al ingresar');
+  await p.screenshot({ path: 'shots3/u_forzado.png' });
+  await p.fill('#n1', 'MiClave2026'); await p.fill('#n2', 'MiClave2026'); await p.click('form button[type=submit]');
+  await p.waitForTimeout(2500);
+  chk(!!(await p.$('.cabecera')), 'ingresa al aplicativo tras cambiarla');
+  console.log(errs.length ? 'ERRORES:\n' + errs.join('\n') : 'SIN ERRORES');
+  await b.close();
+})();
