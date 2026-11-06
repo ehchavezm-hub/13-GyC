@@ -54,7 +54,7 @@ const celdaSuper = (a, conBoton = true) => {
 const codigoEmpresa = a => String(a.id).slice(0, 8);
 const activa = a => a.activa !== false;
 
-const COLOR_EST = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+const COLOR_EST = { activo: '#59A14F', propuesto: '#E8762B', en_pausa: '#BAB0AC', cerrado: '#555555', rechazado: '#E74C3C' };
 const TXT_EST = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
 
 function cab(titulo, sub, botones = '') {
@@ -86,13 +86,13 @@ export async function panelResumenPlataforma(el, ctx) {
     <div class="tarjeta admin-tabla-wrap"><table class="simple">
       <thead><tr><th>EMPRESA</th><th>ADMINISTRADOR</th><th>SUPER ADMINISTRADOR</th><th class="num">USUARIOS</th><th class="num">PORTAFOLIOS</th><th class="num">PROGRAMAS</th><th class="num">PROYECTOS</th><th>ESTADO</th></tr></thead>
       <tbody>${datos.areas.map(a => `<tr>
-        <td><b>${esc(a.nombre)}</b>${a.id === datos.mi_area ? ' ' + badge('En uso ahora', '#1565c0') : ''}</td>
+        <td><b>${esc(a.nombre)}</b>${a.id === datos.mi_area ? ' ' + badge('En uso ahora', '#1F77B4') : ''}</td>
         <td>${celdaAdministrador()}</td><td>${celdaSuper(a, false)}</td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length}</td>
         <td class="num">${datos.portafolios.filter(x => x.area_id === a.id).length}</td>
         <td class="num">${datos.programas.filter(x => x.area_id === a.id).length}</td>
         <td class="num">${proyectosDe(a.id).length}</td>
-        <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td></tr>`).join('')}</tbody>
+        <td>${activa(a) ? badge('Activa', '#59A14F') : badge('Suspendida', '#E74C3C')}</td></tr>`).join('')}</tbody>
     </table></div>`;
   el.addEventListener('click', e => { if (e.target.closest('[data-a="imprimir"]')) ctx.imprimir(el, 'Resumen de la plataforma'); });
 }
@@ -131,12 +131,12 @@ export async function panelEmpresas(el, ctx) {
       const mia = a.id === datos.mi_area;
       return `<tr data-id="${a.id}">
         <td><input type="checkbox" data-sel="${a.id}" ${mia ? 'disabled title="Es la empresa en la que está trabajando"' : ''}></td>
-        <td><b>${esc(a.nombre)}</b>${mia ? ' ' + badge('En uso ahora', '#1565c0') : ''}<br><small class="nota">Código ${esc(codigoEmpresa(a))}</small></td>
+        <td><b>${esc(a.nombre)}</b>${mia ? ' ' + badge('En uso ahora', '#1F77B4') : ''}<br><small class="nota">Código ${esc(codigoEmpresa(a))}</small></td>
         <td>${celdaAdministrador()}</td>
         <td>${celdaSuper(a)}</td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length} <button class="btn btn-xs" data-usuarios="${a.id}">Gestionar</button></td>
         <td class="num">${proyectosDe(a.id).length}</td>
-        <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td>
+        <td>${activa(a) ? badge('Activa', '#59A14F') : badge('Suspendida', '#E74C3C')}</td>
         <td>${esc(fmtFechaHora(a.created_at))}</td>
         <td class="acciones-fila">
           <button class="btn btn-xs" data-abrir="${a.id}" ${mia ? 'disabled' : ''}>Abrir</button>
@@ -364,12 +364,12 @@ function tablaUsuarios(lista, conEmpresa) {
   if (!lista.length) return '<p class="nota" style="padding:12px">Sin usuarios.</p>';
   return `<table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th>${conEmpresa ? '<th>EMPRESA</th>' : ''}<th>ROL</th><th>ESTADO</th><th>ACCIONES</th><th>ELIMINAR</th></tr></thead>
     <tbody>${lista.map(p => `<tr>
-      <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#1A365D') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}
+      <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#003366') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}
         ${empresasDe(p.id).length > 1 ? `<br><small class="nota">También en: ${esc(empresasDe(p.id).filter(a => a.id !== p._area).map(a => a.nombre).join(', '))}${p._otra ? ` · hoy trabaja en ${esc(empresa(p.area_id)?.nombre || '')}` : ''}</small>` : ''}</td>
       <td>${esc(p.email || '—')}</td>
       ${conEmpresa ? `<td>${esc(empresa(p._area)?.nombre || '—')}</td>` : ''}
       <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
-      <td>${p.activo ? badge('Activo', '#2e7d32') : badge('Inactivo', '#888')}</td>
+      <td>${p.activo ? badge('Activo', '#59A14F') : badge('Inactivo', '#777777')}</td>
       <td class="acciones-fila"><button class="btn btn-xs" data-rol="${p.id}" data-area="${p._area}">Cambiar rol</button>
         <button class="btn btn-xs" data-activo="${p.id}" data-area="${p._area}">${p.activo ? 'Desactivar' : 'Activar'}</button>
         ${empresasDe(p.id).length > 1 && !p.es_plataforma ? `<button class="btn btn-xs btn-peligro-borde" data-quitar-de="${p.id}" data-area="${p._area}" title="Deja de pertenecer a esta empresa; su cuenta y sus otras empresas siguen">Quitar de esta empresa</button>` : ''}</td>
@@ -475,7 +475,7 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       area ? 'Portafolio › Programa › Proyecto › Grupo LPS de esta empresa (en el Grupo LPS se registran su Look Ahead y su Plan semanal). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
         : 'Empresa › Portafolio › Programa › Proyecto › Grupo LPS (en el Grupo LPS se registran su Look Ahead y su Plan semanal). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
       `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Grupo LPS</button>
-       <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label><button class="btn" data-a="backup-completo" style="margin-left:auto;background:#1565c0;color:#fff;border-color:#1565c0" title="Descargar respaldo XLS de toda la estructura (todas las empresas)">💾 Backup completo</button>`) +
+       <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label><button class="btn" data-a="backup-completo" style="margin-left:auto;background:#1F77B4;color:#fff;border-color:#1F77B4" title="Descargar respaldo XLS de toda la estructura (todas las empresas)">💾 Backup completo</button>`) +
       `<div class="chips-cifras">
         ${area ? '' : `<span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span>`}<span class="chip-cifra"><b>${vis(datos.portafolios).length}</b> Portafolios</span>
         <span class="chip-cifra"><b>${vis(datos.programas).length}</b> Programas</span><span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => !p.padre_id).length}</b> Proyectos</span>
@@ -553,7 +553,7 @@ function pintarTabla(cuerpo) {
     const heredado = sub && !lideresDe(p.id).length && lid.length;
     const abierto = fila(nivel, sub ? 'subproyecto' : 'proyecto', p, {
       nombre: `<span class="est-ico">${sub ? '▫' : '📋'}</span> <span class="${sub ? 'est-n-sub' : 'est-n-proy'}">${esc(p.nombre_corto)}</span> ${p.estado !== 'activo' ? badge(TXT_EST[p.estado] || p.estado, COLOR_EST[p.estado]) : ''}`,
-      tipo: sub ? badge('Grupo LPS', '#1A365D') : badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
+      tipo: sub ? badge('Grupo LPS', '#003366') : badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
       admin: lid.length ? `${esc(lid.map(nombreCorto).join(', '))}${heredado ? ' <small class="nota">(heredado)</small>' : ''} <button class="btn btn-xs" data-lideres="${p.id}">Cambiar</button>`
         : `${badge('Sin asignar', '#EDC948')} <button class="btn btn-xs btn-azul" data-lideres="${p.id}">Asignar</button>`,
       acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Grupo LPS</button>`}
@@ -568,8 +568,8 @@ function pintarTabla(cuerpo) {
   const filaPrograma = (g, nivel) => {
     const ps = datos.proyectos.filter(p => p.programa_id === g.id && !p.padre_id);
     if (fila(nivel, 'programa', g, {
-      nombre: `<span class="est-ico">📁</span> <span class="est-n-prog">${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
-      tipo: badge('Programa', '#8E44AD'), codigo: esc(g.codigo || '—'), buscar: `${g.nombre} ${g.codigo || ''}`,
+      nombre: `<span class="est-ico">📁</span> <span class="est-n-prog">${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? badge('Inactivo', '#777777') : ''}`,
+      tipo: badge('Programa', '#B07AA1'), codigo: esc(g.codigo || '—'), buscar: `${g.nombre} ${g.codigo || ''}`,
       admin: esc(g.responsable_id ? nombreCorto(datos.perfiles.find(u => u.id === g.responsable_id)) : ''),
       acciones: `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${g.area_id}" data-programa="${g.id}">+ Proyecto</button>
         <button class="btn btn-xs" data-editar="${g.id}" data-tabla="programas">Editar</button>
@@ -582,8 +582,8 @@ function pintarTabla(cuerpo) {
     const progSueltos = datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id);
     const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
     const abierta = fila(0, 'empresa', a, {
-      nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1565c0') : ''} ${activa(a) ? '' : badge('Suspendida', '#b71c1c')}`,
-      tipo: badge('Empresa', '#2e7d32'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
+      nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1F77B4') : ''} ${activa(a) ? '' : badge('Suspendida', '#E74C3C')}`,
+      tipo: badge('Empresa', '#59A14F'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
       admin: `<small class="nota">Administrador: ${esc(propietarios().map(nombreCorto).join(', ') || '—')} · Super administrador: ${esc(superDe(a.id) ? nombreCorto(superDe(a.id)) : 'sin asignar')}</small>`,
       acciones: `<button class="btn btn-xs" data-nuevo="portafolios" data-area="${a.id}">+ Portafolio</button>
         <button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}">+ Programa</button>
@@ -596,8 +596,8 @@ function pintarTabla(cuerpo) {
       const gs = datos.programas.filter(g => g.portafolio_id === f.id);
       const ps = datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id && !p.padre_id);
       if (fila(1, 'portafolio', f, {
-        nombre: `<span class="est-ico">🗂</span> <span class="est-n-port">${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
-        tipo: badge('Portafolio', '#1565c0'), codigo: esc(f.codigo || '—'), buscar: `${f.nombre} ${f.codigo || ''}`,
+        nombre: `<span class="est-ico">🗂</span> <span class="est-n-port">${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? badge('Inactivo', '#777777') : ''}`,
+        tipo: badge('Portafolio', '#1F77B4'), codigo: esc(f.codigo || '—'), buscar: `${f.nombre} ${f.codigo || ''}`,
         admin: esc(f.responsable_id ? nombreCorto(datos.perfiles.find(u => u.id === f.responsable_id)) : ''),
         acciones: `<button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}" data-portafolio="${f.id}">+ Programa</button>
           <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}" data-portafolio="${f.id}">+ Proyecto</button>
@@ -834,11 +834,11 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
   // Mostrar modal PRIMERO (antes de refrescar), para que aparezca aunque alTerminar falle
   const lineas = [
     total
-      ? `<p style="color:#2e7d32;margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} Grupo(s) LPS</b></p>`
+      ? `<p style="color:#59A14F;margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} Grupo(s) LPS</b></p>`
       : `<p style="margin:0 0 6px">Sin elementos nuevos que importar.</p>`,
     omitidos ? `<p style="margin:0 0 6px;color:#555">⏭ Ya existían (omitidos): <b>${omitidos}</b></p>` : '',
     errores.length
-      ? `<p style="color:#c62828;margin:0 0 4px"><b>Errores (${errores.length}):</b></p><pre style="font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#fef2f2;padding:8px;border-radius:4px">${esc(errores.join('\n'))}</pre>`
+      ? `<p style="color:#E74C3C;margin:0 0 4px"><b>Errores (${errores.length}):</b></p><pre style="font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#FDF2F2;padding:8px;border-radius:4px">${esc(errores.join('\n'))}</pre>`
       : '',
   ].join('');
 
@@ -1055,7 +1055,7 @@ export async function panelPropietarios(el) {
     el.innerHTML = cab('Propietarios de la plataforma', 'Administran todas las empresas: las crean, suspenden y eliminan, y ven su estructura. Debe haber al menos uno.',
       `<button class="btn btn-primario" data-a="agregar">+ Agregar propietario</button>`) +
       `<div class="tarjeta admin-tabla-wrap"><table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th><th>TRABAJANDO EN</th><th></th></tr></thead>
-        <tbody>${props.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.id === store.usuario.id ? ' ' + badge('Usted', '#1565c0') : ''}</td><td>${esc(p.email || '—')}</td>
+        <tbody>${props.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.id === store.usuario.id ? ' ' + badge('Usted', '#1F77B4') : ''}</td><td>${esc(p.email || '—')}</td>
           <td>${esc(empresa(p.area_id)?.nombre || '—')}</td>
           <td><button class="btn btn-xs btn-peligro-borde" data-quitar="${p.id}" ${p.id === store.usuario.id || props.length <= 1 ? 'disabled' : ''}>Quitar</button></td></tr>`).join('')}</tbody></table></div>`;
   };

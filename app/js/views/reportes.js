@@ -29,10 +29,10 @@ function barras(datos, { max = Math.max(1, ...datos.map(d => d.valor || 0)), alt
   return `<svg viewBox="0 0 ${W} ${H + (meta != null ? 14 : 0)}" width="100%" style="max-width:${W}px;font-family:Manrope,Arial;font-size:9px">
     ${datos.map((d, i) => { const y = 6 + i * (alto + 6); return `
       <text x="${anchoEtiqueta - 6}" y="${y + alto * 0.7}" text-anchor="end" fill="#1A1A2E"><title>${esc(d.etiqueta)}</title>${esc(corto(d.etiqueta))}</text>
-      <rect x="${anchoEtiqueta}" y="${y}" width="${area}" height="${alto}" fill="#F1F4F8" rx="2"/>
+      <rect x="${anchoEtiqueta}" y="${y}" width="${area}" height="${alto}" fill="#F8FAFC" rx="2"/>
       <rect x="${anchoEtiqueta}" y="${y}" width="${Math.max(0, x(d.valor) - anchoEtiqueta)}" height="${alto}" fill="${d.color || '#4E79A7'}" rx="2"/>
-      <text x="${x(d.valor) + 4}" y="${y + alto * 0.7}" fill="#4A5568">${esc(d.texto ?? '')}</text>`; }).join('')}
-    ${meta != null ? `<line x1="${x(meta)}" x2="${x(meta)}" y1="2" y2="${H}" stroke="#1A365D" stroke-dasharray="3 2"/><text x="${x(meta)}" y="${H + 11}" text-anchor="middle" fill="#1A365D">Meta ${pct(meta)}</text>` : ''}
+      <text x="${x(d.valor) + 4}" y="${y + alto * 0.7}" fill="#555555">${esc(d.texto ?? '')}</text>`; }).join('')}
+    ${meta != null ? `<line x1="${x(meta)}" x2="${x(meta)}" y1="2" y2="${H}" stroke="#003366" stroke-dasharray="3 2"/><text x="${x(meta)}" y="${H + 11}" text-anchor="middle" fill="#003366">Meta ${pct(meta)}</text>` : ''}
   </svg>`;
 }
 
@@ -131,7 +131,7 @@ const REPORTES = [
       const pareto = paretoCNC(acts).slice(0, 5);
       const meta = Number(param('meta_pac'));
       return `<p class="nota">Periodo: ${esc(etiquetaSemana(serie[0].semana).split('·')[0])} a ${esc(etiquetaSemana(f.semana))} (${f.periodo} semanas)</p>${pieFiltro(f)}` +
-        kpisPDF([['PAC del periodo', pct(pacPeriodo), colorPAC(pacPeriodo)], ['PAC de la semana', pct(sem.pac), colorPAC(sem.pac)], ['Meta', pct(meta), '#1A365D'],
+        kpisPDF([['PAC del periodo', pct(pacPeriodo), colorPAC(pacPeriodo)], ['PAC de la semana', pct(sem.pac), colorPAC(sem.pac)], ['Meta', pct(meta), '#003366'],
           ['% no programadas', pct(sem.pctNoProgramadas), '#F28E2B'],
           ...(esStaff() ? [['Restricciones abiertas', rr.abiertas, rr.vencidas ? '#E15759' : '#59A14F'], ['Vencidas', rr.vencidas, '#E15759']] : [])]) +
         '<h2>PAC por semana</h2>' + barras(serie.map(s => ({ etiqueta: etiquetaSemana(s.semana).split('·')[0].trim(), valor: s.pac ?? 0, texto: s.pac == null ? 'sin datos' : pct(s.pac), color: colorPAC(s.pac) })), { max: 1, meta }) +
@@ -196,7 +196,7 @@ const REPORTES = [
         const hh = acts.filter(a => a.responsable_id === l.id && a.semana === s && a.estado_la !== 'cancelada').reduce((x, a) => x + (Number(a.hh_total) || 0), 0);
         const cap = capacidadSemana(l.id, s, ubic);
         const r = cap ? hh / cap : null;
-        return `<div style="display:flex;align-items:center;gap:2mm"><div style="flex:1;height:2.4mm;background:#F1F4F8;border-radius:1mm;overflow:hidden">
+        return `<div style="display:flex;align-items:center;gap:2mm"><div style="flex:1;height:2.4mm;background:#F8FAFC;border-radius:1mm;overflow:hidden">
           <div style="width:${Math.min(100, (r || 0) * 100)}%;height:100%;background:${colorCarga(r)}"></div></div>
           <span style="white-space:nowrap">${num(hh)} / ${num(cap)}${r != null && r > 1.05 ? ' ⚠' : ''}</span></div>`;
       };

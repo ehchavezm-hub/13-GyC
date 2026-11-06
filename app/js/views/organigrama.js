@@ -278,19 +278,19 @@ export function organigramaSVG(nodos) {
   const lineasSVG = validos.filter(n => n.padre_id && porId.has(n.padre_id)).map(n => {
     const p = porId.get(n.padre_id);
     const x1 = X(p) + ANCHO / 2, y1 = Y(p) + ALTO, x2 = X(n) + ANCHO / 2, y2 = Y(n), my = (y1 + y2) / 2;
-    return `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" fill="none" stroke="#A0AEC0" stroke-width="1.5"/>`;
+    return `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" fill="none" stroke="#777777" stroke-width="1.5"/>`;
   }).join('');
   const tarjetas = validos.map(n => {
     const p = n.tipo === 'persona' ? store.perfiles.find(x => x.id === n.usuario_id) : null;
     const titulo = n.tipo === 'unidad' ? (n.titulo || 'Unidad') : (p?.nombre || n.titulo || 'Vacante');
     const sub = n.tipo === 'unidad' ? `${nHijos(n.id)} dependiente(s)` : ((p?.cargo_id && store.valores.get(p.cargo_id)?.valor) || n.titulo || '');
     const rol = p ? ROLES[p.rol] || p.rol : '';
-    const [borde, fondo, color] = n.tipo === 'unidad' ? ['#2B6CB0', '#EBF4FF', '#2B6CB0'] : ['#2F855A', '#F0FFF4', '#22543D'];
+    const [borde, fondo, color] = n.tipo === 'unidad' ? ['#1F77B4', '#EAEFF4', '#1F77B4'] : ['#59A14F', '#EEF6ED', '#59A14F'];
     const lt = partir(titulo, 26), ls = partir(sub, 34);
     let y = Y(n) + 22;
     const txt = (t, size, peso, col) => { const e = `<text x="${X(n) + ANCHO / 2}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="${peso}" fill="${col}">${esc(t)}</text>`; y += size + 2; return e; };
     return `<rect x="${X(n)}" y="${Y(n)}" width="${ANCHO}" height="${ALTO}" rx="10" fill="${fondo}" stroke="${borde}" stroke-width="2"/>
-      ${txt(n.tipo === 'unidad' ? '🏢' : '👤', 12, 400, color)}${lt.map(t => txt(t, 11, 700, color)).join('')}${ls.map(t => txt(t, 9, 400, '#4A5568')).join('')}${rol ? txt(rol, 8.5, 400, '#718096') : ''}`;
+      ${txt(n.tipo === 'unidad' ? '🏢' : '👤', 12, 400, color)}${lt.map(t => txt(t, 11, 700, color)).join('')}${ls.map(t => txt(t, 9, 400, '#555555')).join('')}${rol ? txt(rol, 8.5, 400, '#777777') : ''}`;
   }).join('');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:170mm;font-family:Manrope,Arial,sans-serif" preserveAspectRatio="xMidYMin meet">${lineasSVG}${tarjetas}</svg>`;
 }

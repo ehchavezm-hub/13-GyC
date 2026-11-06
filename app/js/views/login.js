@@ -29,7 +29,7 @@ function montarClerk(el, continuar) {
     el.innerHTML = '';
     clerk.mountSignIn(el, {
       fallbackRedirectUrl: location.pathname + location.search,
-      appearance: { variables: { colorPrimary: '#e67e22', borderRadius: '8px' } },
+      appearance: { variables: { colorPrimary: '#E8762B', borderRadius: '8px' } },
     });
   } catch (e) {
     console.error('mountSignIn:', e);

@@ -136,7 +136,7 @@ const PINTORES = {
     const rr = resumenRestricciones(estado.rests);
     c.innerHTML = `<div class="kpis">${kpi('Abiertas', rr.abiertas)}${kpi('Vencidas', rr.vencidas, { color: rr.vencidas ? '#E15759' : '#59A14F' })}${kpi('Levantadas a tiempo', pct(rr.pctATiempo))}</div>
       <div class="tarjeta"><h2>Restricciones abiertas</h2>${ab.length ? `<table class="simple"><tr><th>Restricción</th><th>Proyecto</th><th>Responsable</th><th>F. requerida</th><th>Estado</th></tr>
-      ${ab.map(r => `<tr${r.f_requerida && r.f_requerida < hoy() ? ' style="background:#FCE9EA"' : ''}><td>${esc(r.descripcion)}</td><td>${esc(proyecto(r.proyecto_id)?.nombre_corto || '')}</td>
+      ${ab.map(r => `<tr${r.f_requerida && r.f_requerida < hoy() ? ' style="background:#FBEBEB"' : ''}><td>${esc(r.descripcion)}</td><td>${esc(proyecto(r.proyecto_id)?.nombre_corto || '')}</td>
         <td>${esc(r.responsable || nombre(r.responsable_id))}</td><td>${fmtFecha(r.f_requerida)}</td><td>${badge(textoEstado('estados_restriccion', r.estado), colorEstado('estados_restriccion', r.estado))}</td></tr>`).join('')}</table>`
       : '<p class="nota">No hay restricciones abiertas.</p>'}<p><a href="#/restricciones">Ir al log de restricciones ›</a></p></div>`;
   },

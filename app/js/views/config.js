@@ -4,7 +4,7 @@ import { imprimirPDF, nombreArchivo } from '../services/pdf.js';
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion, diasCierre } from '../core/store.js';
-import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
+import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS, PALETA } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar, libExcel } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -319,7 +319,9 @@ async function listas(el, claveSel) {
         { field: 'valor', title: 'Texto visible', tipo: 'texto', ancho: 320 },
         { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 120, editable: x => !x.protegido },
         { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 240 },
-        { field: 'color', title: 'Color', tipo: 'texto', ancho: 100, formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(v)}</span>` : '' },
+        { field: 'color', title: 'Color', tipo: 'lista', ancho: 150,
+          opciones: [{ value: null, label: '—' }, ...PALETA.map(([value, nombre]) => ({ value, label: `${nombre} ${value}` }))],
+          formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(PALETA.find(([h]) => h === String(v).toUpperCase())?.[1] || v)}</span>` : '' },
       ]),
       { field: 'orden', title: 'Orden', tipo: 'numero', ancho: 70, paso: 1 },
       { field: 'activo', title: 'Activo', tipo: 'casilla', ancho: 70, editable: x => !x.protegido },
