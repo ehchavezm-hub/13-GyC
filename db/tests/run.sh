@@ -18,7 +18,9 @@ PSQL=(psql -h "$TMP" -p "$PORT" -U postgres -v ON_ERROR_STOP=1 -q)
 "${PSQL[@]}" -d gyc -f "$RAIZ/db/migrations/035_compatibilidad_api.sql"   # se puede ejecutar más de una vez
 "${PSQL[@]}" -d gyc -f "$RAIZ/db/migrations/036_cuentas_preasignadas.sql"
 "${PSQL[@]}" -d gyc -f "$RAIZ/db/migrations/036_cuentas_preasignadas.sql"
-echo "OK: migraciones 000 + 035 + 036"
+"${PSQL[@]}" -d gyc -f "$RAIZ/db/migrations/037_programa_arranque_r1.sql"
+"${PSQL[@]}" -d gyc -f "$RAIZ/db/migrations/037_programa_arranque_r1.sql"
+echo "OK: migraciones 000 + 035 + 036 + 037"
 "${PSQL[@]}" -d postgres -c "create database gyc_api"
 DATABASE_URL_PRUEBAS="postgres://postgres@localhost:$PORT/gyc_api?host=$TMP" node --test "$RAIZ/pruebas/api/api.test.mjs"
 echo "OK: API compatible con la base"

@@ -8,12 +8,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import { usarEjecutor } from '../../api/_lib/db.js';
+import { usarEjecutor, configurarTipos } from '../../api/_lib/db.js';
 import { usarVerificador } from '../../api/_lib/auth.js';
 import datos from '../../api/datos.js';
 import admin from '../../api/admin-usuarios.js';
 import { semillaEmpresa } from '../../app/js/data/catalogos.js';
 
+configurarTipos(pg.types);   // igual que en producción (api/_lib/db.js)
 const URL_BD = process.env.DATABASE_URL_PRUEBAS;
 if (!URL_BD) { console.log('DATABASE_URL_PRUEBAS no definida: se omiten las pruebas del API.'); process.exit(0); }
 if (/neon\.tech|vercel/i.test(URL_BD)) throw new Error('DATABASE_URL_PRUEBAS parece producción: use un PostgreSQL local.');
@@ -29,6 +30,7 @@ before(async () => {
     await c.query(migracion('000_gyc_neon_completo.sql'));
     await c.query(migracion('035_compatibilidad_api.sql'));
     await c.query(migracion('036_cuentas_preasignadas.sql'));
+    await c.query(migracion('037_programa_arranque_r1.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {
@@ -118,7 +120,8 @@ test('actividades: columnas generadas, jsonb, cadenas vacías y filtros', async 
     semana: lunes, responsable_id: 'user_lider', proyecto_id: ctx.proyecto, descripcion: 'Vaciado de losa',
     hh_lu: 2, hh_ma: '3', hh_total: 99, extra: { color: 'rojo', lista: [1, 2] }, comprometida: true, cnc_id: '', columna_vieja: 'x',
   });
-  assert.equal(Number(a.hh_total), 5);
+  assert.equal(a.hh_total, 5);                 // numeric → número (como PostgREST), no "5.00"
+  assert.equal(a.semana, lunes);               // date → 'AAAA-MM-DD', no un timestamp
   assert.deepEqual(a.extra, { color: 'rojo', lista: [1, 2] });
   assert.equal(a.area_id, ctx.area);
   assert.equal(a.created_by, 'user_lider');
@@ -127,7 +130,7 @@ test('actividades: columnas generadas, jsonb, cadenas vacías y filtros', async 
   assert.equal(r.length, 1);
   assert.equal((await B.list('actividades', { in: { id: [] } })).length, 0);
   const u = await B.update('actividades', a.id, { hh_mi: 1, comentario: '' });
-  assert.equal(Number(u.hh_total), 6);
+  assert.equal(u.hh_total, 6);
   await assert.rejects(C.update('actividades', a.id, { hh_mi: 2 }), /solo consulta/);
 });
 
@@ -162,6 +165,22 @@ test('programa de arranque (tablas nuevas, jsonb en arreglo, update devuelve un 
   const [d2] = await B.upsert('programa_arranque_detalle', { programa_id: pa.id, item_codigo: '1', responsable: 'EHCM' }, 'programa_id,item_codigo');
   assert.equal(d2.responsable, 'EHCM');
   assert.deepEqual(d2.semanas, [{ plan: true }, {}]);
+  // Formato r1: definición (amarillo) y seguimiento por reunión (verde)
+  const [def] = await B.upsert('programa_arranque_detalle', { programa_id: pa.id, item_codigo: '1', responsable_id: 'user_lider',
+    responsable: 'Lía', inicio_programado: '2026-07-06', fin_programado: '2026-10-04' }, 'programa_id,item_codigo');
+  assert.equal(def.fin_programado, '2026-10-04');
+  for (const [fecha, avance] of [['2026-11-06', 10], ['2026-11-13', 35]]) {
+    await B.upsert('programa_arranque_seguimiento', { programa_id: pa.id, item_codigo: '1', fecha_revision: fecha, avance }, 'programa_id,item_codigo,fecha_revision');
+  }
+  const [s2] = await B.upsert('programa_arranque_seguimiento', { programa_id: pa.id, item_codigo: '1', fecha_revision: '2026-11-13', comentarios: 'ok' },
+    'programa_id,item_codigo,fecha_revision');
+  assert.deepEqual([s2.avance, s2.comentarios], [35, 'ok']);
+  assert.equal((await B.list('programa_arranque_seguimiento', { eq: { programa_id: pa.id } })).length, 2);
+  await assert.rejects(B.upsert('programa_arranque_seguimiento', { programa_id: pa.id, item_codigo: '1', fecha_revision: '2026-11-20', avance: 120 },
+    'programa_id,item_codigo,fecha_revision'), /check/);
+  // Información del proyecto (pestaña 0)
+  const info = await B.update('proyectos', ctx.proyecto, { cr: 'C202000', inicio_contractual: '2026-07-01', fin_contractual: '2027-06-30' });
+  assert.equal(info.inicio_contractual, '2026-07-01');
   const act = await B.update('programa_arranque', pa.id, { cr_proyecto: 'CR-1', fecha_movilizacion: '' });
   assert.equal(act.cr_proyecto, 'CR-1');
   assert.equal(Array.isArray(act), false);

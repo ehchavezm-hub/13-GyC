@@ -1,38 +1,56 @@
-// Programa de Arranque (CR-PG-SGP-01-F1): checklist de 74 ítems con tracking semanal.
+// Programa de Arranque (CR-PG-SGP-01-F1 r1, pestaña "1.Programa de arranque").
+//   · Definición (cabecera amarilla): se completa en la reunión de definición — responsable, inicio y fin
+//     programado, comentarios. Un valor por ítem (programa_arranque_detalle).
+//   · Seguimiento (cabecera verde): se completa en cada reunión de seguimiento — fecha de revisión, % avance
+//     acumulado, comentarios y fin re-programado. Un registro por ítem y reunión (programa_arranque_seguimiento).
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
-import { store, esGestor, esAdmin, puede, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
-import { esc, html, fmtFecha } from '../core/util.js';
-import { toast, error as mostrarError, confirmar, pedirDatos } from '../ui/ui.js';
+import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre } from '../core/store.js';
+import { esc, html, fmtFecha, hoy, sumarDias, libExcel } from '../core/util.js';
+import { error as mostrarError, modal, pedirDatos, ok } from '../ui/ui.js';
+import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
-let estado = { programa: null, items: [], detalle: new Map(), numSemanas: 8 };
+const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin programado = Inicio programado + 90
 
-export async function render(el, _params) {
+let estado = { proyId: null, programa: null, items: [], detalle: new Map(), seguimientos: [], reunion: null, editable: false, reuniones: [] };
+
+export async function render(el) {
   el.innerHTML = '';
-  if (!haySeleccion()) {
-    el.innerHTML = `<div class="aviso-vacio"><p>Selecciona un proyecto para ver el Programa de Arranque.</p></div>`;
+  const proyId = store.proyectoSel;   // id del proyecto elegido en el árbol
+  if (!haySeleccion() || !proyId) {
+    el.innerHTML = '<div class="aviso-vacio"><p>Selecciona un proyecto en el menú para ver su Programa de Arranque.</p></div>';
     return;
   }
+  estado = { proyId, programa: null, items: [], detalle: new Map(), seguimientos: [], reunion: null, editable: puedeEditarProyecto(proyId), reuniones: [] };
 
   const wrap = html(`<div class="pagina-arr">
     <div class="pagina-cab">
       <h1>Programa de Arranque</h1>
-      <span data-proy class="proy-badge"></span>
+      <span class="proy-badge">${esc(nombreSeleccion())}</span>
       <span class="flex"></span>
-      <button class="btn btn-sm" data-a="config" title="Configurar cabecera">⚙ Configurar</button>
+      <button class="btn btn-sm" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
     <div data-cab-info class="arr-cab-info"></div>
+    <div data-reunion class="arr-reunion"></div>
     <div data-kpis class="kpis"></div>
     <div data-filtros class="arr-filtros"></div>
     <div data-tabla class="arr-tabla-wrap"></div>
   </div>`);
   el.append(wrap);
+  wrap.querySelector('[data-a="excel"]').addEventListener('click', () => exportarExcel().catch(e => mostrarError(mensajeError(e))));
 
-  wrap.querySelector('[data-proy]').textContent = nombreSeleccion();
-  wrap.querySelector('[data-a="config"]').addEventListener('click', configurarCabecera);
+  try {
+    await medir('programa-arranque.cargar', () => cargarDatos(proyId));
+  } catch (e) {
+    mostrarError(mensajeError(e));
+    return;
+  }
+  pintarTodo(wrap);
+}
 
-  await cargar();
+function pintarTodo(wrap) {
   pintarCabInfo(wrap);
+  pintarReunion(wrap);
   pintarKpis(wrap);
   pintarFiltros(wrap);
   pintarTabla(wrap);
@@ -40,306 +58,303 @@ export async function render(el, _params) {
 
 // ── Carga de datos ────────────────────────────────────────────────────────────
 
-async function cargar() {
-  const proyId = store.proyectoSel;   // id del proyecto elegido en el árbol (texto)
-  if (!proyId) return;
-
-  try {
-    await medir('programa-arranque.cargar', () => cargarDatos(proyId));
-  } catch (e) {
-    mostrarError(mensajeError(e));
-  }
-}
-
 async function cargarDatos(proyId) {
   const [items, programas] = await Promise.all([
     api.list('programa_arranque_items', { order: [['orden', true]] }),
     api.list('programa_arranque', { eq: { proyecto_id: proyId } }),
   ]);
-
   estado.items = items;
+  if (programas.length) estado.programa = programas[0];
+  else [estado.programa] = await api.insert('programa_arranque', { proyecto_id: proyId });
 
-  if (!programas.length) {
-    // Auto-crear instancia vacía para este proyecto
-    const [nuevo] = await api.insert('programa_arranque', {
-      proyecto_id: proyId,
-      num_semanas: 8,
-    });
-    estado.programa = nuevo;
-  } else {
-    estado.programa = programas[0];
-  }
-
-  estado.numSemanas = estado.programa.num_semanas || 8;
-
-  const detalles = await api.list('programa_arranque_detalle', {
-    eq: { programa_id: estado.programa.id },
-  });
-
+  const [detalles, seguimientos] = await Promise.all([
+    api.list('programa_arranque_detalle', { eq: { programa_id: estado.programa.id } }),
+    api.list('programa_arranque_seguimiento', { eq: { programa_id: estado.programa.id }, order: [['fecha_revision', true]] }),
+  ]);
   estado.detalle = new Map(detalles.map(d => [d.item_codigo, d]));
+  estado.seguimientos = seguimientos;
+  estado.reuniones = [...new Set(seguimientos.map(s => s.fecha_revision))].sort();
+  estado.reunion = estado.reuniones.at(-1) || hoy();
 }
 
-// ── Cabecera informativa ──────────────────────────────────────────────────────
+// Registro de seguimiento de un ítem en la reunión elegida, y el último anterior (referencia)
+const segDe = (codigo, fecha = estado.reunion) => estado.seguimientos.find(s => s.item_codigo === codigo && s.fecha_revision === fecha);
+const segVigente = (codigo, hasta = estado.reunion) => estado.seguimientos
+  .filter(s => s.item_codigo === codigo && s.fecha_revision <= hasta).at(-1);
+const finVigente = (codigo, hasta) => segVigente(codigo, hasta)?.fin_reprogramado || estado.detalle.get(codigo)?.fin_programado || null;
+
+// ── Usuarios del proyecto (responsables) ──────────────────────────────────────
+
+function usuariosProyecto() {
+  const ids = new Set(lideresHeredados(estado.proyId));
+  const activos = store.perfiles.filter(p => p.activo && !p.eliminado && p.rol !== 'pendiente');
+  const delProyecto = activos.filter(p => ids.has(p.id));
+  return { lista: (delProyecto.length ? delProyecto : activos).sort((a, b) => a.nombre.localeCompare(b.nombre)), soloProyecto: delProyecto.length > 0 };
+}
+
+// ── Cabecera: información del proyecto (pestaña 0) ────────────────────────────
 
 function pintarCabInfo(wrap) {
-  const p = estado.programa;
-  if (!p) return;
-  wrap.querySelector('[data-cab-info]').innerHTML = `
-    <div class="arr-cab-fields">
-      <span><b>CR / Proyecto:</b> ${esc(p.cr_proyecto || '—')}</span>
-      <span><b>Inicio movilización:</b> ${p.fecha_movilizacion ? fmtFecha(p.fecha_movilizacion) : '—'}</span>
-      <span><b>Inicio construcción:</b> ${p.fecha_construccion ? fmtFecha(p.fecha_construccion) : '—'}</span>
-      <span><b>Actualización:</b> ${p.fecha_actualizacion ? fmtFecha(p.fecha_actualizacion) : '—'}</span>
-      <span><b>Semanas:</b> ${estado.numSemanas}</span>
-    </div>`;
+  const p = proyecto(estado.proyId) || {};
+  const v = c => {
+    const x = c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : p[c.name];
+    return x ? (c.type === 'date' ? fmtFecha(x) : x) : '—';
+  };
+  wrap.querySelector('[data-cab-info]').innerHTML = `<div class="arr-cab-fields">
+    ${CAMPOS_INFO.map(c => `<span><b>${esc(c.label)}:</b> ${esc(v(c))}</span>`).join('')}
+    <a href="#/informacion-proyecto">${estado.editable ? '✎ Editar información del proyecto' : 'Ver información del proyecto'}</a></div>`;
 }
 
-// ── KPIs semanales (PAC) ──────────────────────────────────────────────────────
+// ── Reunión de seguimiento elegida ────────────────────────────────────────────
 
-function calcularKpis() {
-  const kpis = [];
-  for (let s = 0; s < estado.numSemanas; s++) {
-    let planeadas = 0, completadas = 0;
-    for (const item of estado.items) {
-      const det = estado.detalle.get(item.item_codigo);
-      const semanas = det?.semanas || [];
-      const sem = semanas[s] || {};
-      if (sem.plan) planeadas++;
-      if (sem.cumplio) completadas++;
-    }
-    const pac = planeadas > 0 ? Math.round(completadas / planeadas * 100) : null;
-    kpis.push({ semana: s + 1, planeadas, completadas, pac });
-  }
-  return kpis;
+function pintarReunion(wrap) {
+  const fechas = [...new Set([...estado.reuniones, estado.reunion])].sort().reverse();
+  const caja = wrap.querySelector('[data-reunion]');
+  caja.innerHTML = `
+    <span class="arr-leyenda arr-def">Definición</span><span class="nota">reunión de definición (un valor por ítem)</span>
+    <span class="arr-leyenda arr-seg">Seguimiento</span>
+    <label>reunión del
+      <select data-sel-reunion class="sel">${fechas.map(f => `<option value="${f}"${f === estado.reunion ? ' selected' : ''}>${fmtFecha(f)}${estado.reuniones.includes(f) ? '' : ' (nueva)'}</option>`).join('')}</select>
+    </label>
+    ${estado.editable ? '<button class="btn btn-sm" data-a="nueva-reunion">＋ Nueva reunión de seguimiento</button>' : ''}
+    <span class="nota">${estado.reuniones.length} reunión(es) registrada(s)</span>`;
+  caja.querySelector('[data-sel-reunion]').addEventListener('change', e => { estado.reunion = e.target.value; pintarTodo(wrap); });
+  caja.querySelector('[data-a="nueva-reunion"]')?.addEventListener('click', async () => {
+    const d = await pedirDatos({
+      titulo: 'Nueva reunión de seguimiento',
+      antes: 'Las columnas verdes se llenarán para esta fecha. Los valores de reuniones anteriores se conservan en el historial.',
+      campos: [{ name: 'fecha', label: 'Fecha de revisión', type: 'date', required: true }],
+      valores: { fecha: hoy() },
+    });
+    if (!d?.fecha) return;
+    estado.reunion = d.fecha;
+    pintarTodo(wrap);
+  });
 }
+
+// ── Indicadores ───────────────────────────────────────────────────────────────
 
 function pintarKpis(wrap) {
-  const kpis = calcularKpis();
-  const totalItems = estado.items.length;
-  const totalConFecha = [...estado.detalle.values()].filter(d => d.fecha_plan).length;
-
-  wrap.querySelector('[data-kpis]').innerHTML = `
-    <div class="kpi-tile"><span class="kpi-val">${totalItems}</span><span class="kpi-lbl">Ítems totales</span></div>
-    <div class="kpi-tile"><span class="kpi-val">${totalConFecha}</span><span class="kpi-lbl">Con fecha plan</span></div>
-    ${kpis.map(k => `
-      <div class="kpi-tile kpi-semana" title="Semana ${k.semana}: ${k.completadas}/${k.planeadas} completadas">
-        <span class="kpi-val ${k.pac === null ? '' : k.pac >= 80 ? 'verde' : k.pac >= 50 ? 'naranja' : 'rojo'}">${k.pac === null ? '—' : k.pac + '%'}</span>
-        <span class="kpi-lbl">S${k.semana} PAC</span>
-        <span class="kpi-sub">${k.completadas}/${k.planeadas}</span>
-      </div>`).join('')}`;
+  const items = estado.items;
+  const det = c => estado.detalle.get(c) || {};
+  const conResp = items.filter(i => det(i.item_codigo).responsable_id || det(i.item_codigo).responsable).length;
+  const conFechas = items.filter(i => det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado).length;
+  const avances = items.map(i => Number(segVigente(i.item_codigo)?.avance ?? 0));
+  const promedio = items.length ? Math.round(avances.reduce((s, x) => s + x, 0) / items.length) : 0;
+  const terminados = avances.filter(a => a >= 100).length;
+  const atrasados = items.filter(i => {
+    const fin = finVigente(i.item_codigo, estado.reunion);
+    return fin && fin < estado.reunion && Number(segVigente(i.item_codigo)?.avance ?? 0) < 100;
+  }).length;
+  const tile = (v, l, clase = '', t = '') => `<div class="kpi-tile" title="${esc(t)}"><span class="kpi-val ${clase}">${v}</span><span class="kpi-lbl">${l}</span></div>`;
+  wrap.querySelector('[data-kpis]').innerHTML =
+    tile(items.length, 'Ítems totales') +
+    tile(items.filter(i => i.obligatorio).length, 'Obligatorios') +
+    tile(`${conResp}/${items.length}`, 'Con responsable') +
+    tile(`${conFechas}/${items.length}`, 'Con fechas programadas') +
+    tile(`${promedio}%`, 'Avance promedio', promedio >= 80 ? 'verde' : promedio >= 50 ? 'naranja' : '', `Al ${fmtFecha(estado.reunion)}`) +
+    tile(terminados, 'Terminados (100%)', 'verde') +
+    tile(atrasados, 'Atrasados', atrasados ? 'rojo' : '', `Fin programado o re-programado anterior al ${fmtFecha(estado.reunion)} y sin 100%`);
 }
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-function pintarFiltros(wrap) {
-  const procesos = [...new Set(estado.items.map(i => i.proceso))].sort();
-  wrap.querySelector('[data-filtros]').innerHTML = `
-    <label>Proceso:
-      <select data-filtro-proceso class="sel">
-        <option value="">Todos</option>
-        ${procesos.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
-      </select>
-    </label>
-    <label>
-      <input type="checkbox" data-filtro-oblig> Solo obligatorios
-    </label>`;
+const filtros = { proceso: '', oblig: false, resp: '' };
 
-  wrap.querySelector('[data-filtro-proceso]').addEventListener('change', () => pintarTabla(wrap));
-  wrap.querySelector('[data-filtro-oblig]').addEventListener('change', () => pintarTabla(wrap));
+function pintarFiltros(wrap) {
+  const procesos = [...new Set(estado.items.map(i => i.proceso))];
+  const { lista } = usuariosProyecto();
+  const caja = wrap.querySelector('[data-filtros]');
+  caja.innerHTML = `
+    <label>Proceso: <select data-f="proceso" class="sel"><option value="">Todos</option>
+      ${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
+    <label>Responsable: <select data-f="resp" class="sel"><option value="">Todos</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin asignar</option>
+      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === filtros.resp ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></label>
+    <label><input type="checkbox" data-f="oblig"${filtros.oblig ? ' checked' : ''}> Solo obligatorios</label>
+    ${estado.editable ? '<span class="nota">Haga clic en una celda para editarla.</span>' : '<span class="nota">Solo lectura.</span>'}`;
+  caja.addEventListener('change', e => {
+    const f = e.target.dataset.f;
+    if (!f) return;
+    filtros[f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    pintarTabla(wrap);
+  });
 }
 
 // ── Tabla principal ───────────────────────────────────────────────────────────
 
 function pintarTabla(wrap) {
-  const proceso = wrap.querySelector('[data-filtro-proceso]')?.value || '';
-  const soloOblig = wrap.querySelector('[data-filtro-oblig]')?.checked || false;
+  const items = estado.items.filter(i => {
+    const d = estado.detalle.get(i.item_codigo) || {};
+    return (!filtros.proceso || i.proceso === filtros.proceso) && (!filtros.oblig || i.obligatorio) &&
+      (!filtros.resp || (filtros.resp === '-' ? !d.responsable_id && !d.responsable : d.responsable_id === filtros.resp));
+  });
+  const ed = estado.editable ? ' data-editable' : '';
 
-  const items = estado.items.filter(i =>
-    (!proceso || i.proceso === proceso) &&
-    (!soloOblig || i.obligatorio)
-  );
-
-  const colsSemanas = Array.from({ length: estado.numSemanas }, (_, i) => i);
-
-  const thead = `<tr>
-    <th class="col-item">Ítem</th>
-    <th class="col-proceso">Proceso</th>
-    <th class="col-area">Área Líder</th>
-    <th class="col-oblig" title="Obligatorio">Oblig.</th>
-    <th class="col-desc">Descripción</th>
-    <th class="col-resp">Responsable</th>
-    <th class="col-fp">F. Plan</th>
-    <th class="col-fr">F. Real</th>
-    <th class="col-com">Comentarios</th>
-    ${colsSemanas.map(s => `<th class="col-sem" colspan="2">S${s + 1}</th>`).join('')}
-  </tr>
-  <tr class="subhead">
-    <th colspan="9"></th>
-    ${colsSemanas.map(() => `<th class="col-plan" title="Planeado">Plan</th><th class="col-cum" title="Cumplió">Cum.</th>`).join('')}
-  </tr>`;
-
-  const tbody = items.map(item => {
-    const det = estado.detalle.get(item.item_codigo) || {};
-    const semanas = det.semanas || [];
-    const fondo = item.obligatorio ? '' : 'row-opc';
-
-    const semanaCols = colsSemanas.map(s => {
-      const sem = semanas[s] || {};
-      return `
-        <td class="col-plan">
-          <input type="checkbox" class="chk" data-item="${esc(item.item_codigo)}" data-sem="${s}" data-tipo="plan" ${sem.plan ? 'checked' : ''}>
-        </td>
-        <td class="col-cum">
-          <input type="checkbox" class="chk" data-item="${esc(item.item_codigo)}" data-sem="${s}" data-tipo="cumplio" ${sem.cumplio ? 'checked' : ''}>
-        </td>`;
-    }).join('');
-
-    return `<tr class="${fondo}" data-item-row="${esc(item.item_codigo)}">
-      <td class="col-item">${esc(item.item_codigo)}</td>
+  const filas = items.map(item => {
+    const c = item.item_codigo;
+    const d = estado.detalle.get(c) || {};
+    const s = segDe(c);
+    const ref = !s && segVigente(c);       // sin registro en esta reunión: se muestra el último, en gris
+    const seg = s || ref || {};
+    const n = estado.seguimientos.filter(x => x.item_codigo === c).length;
+    const fin = finVigente(c, estado.reunion);
+    const atrasado = fin && fin < estado.reunion && Number(seg.avance ?? 0) < 100;
+    const resp = d.responsable_id ? (nombre(d.responsable_id) || d.responsable) : d.responsable;
+    return `<tr class="${item.obligatorio ? '' : 'row-opc'}${atrasado ? ' arr-atrasado' : ''}" data-item-row="${esc(c)}">
+      <td class="col-item">${esc(c)}</td>
       <td class="col-proceso">${esc(item.proceso)}</td>
       <td class="col-area">${esc(item.area_lider)}</td>
-      <td class="col-oblig">${item.obligatorio ? '✔' : ''}</td>
+      <td class="col-oblig">${item.obligatorio ? 'Sí' : ''}</td>
       <td class="col-desc">${esc(item.descripcion)}</td>
-      <td class="col-resp" data-editable data-campo="responsable">${esc(det.responsable || '')}</td>
-      <td class="col-fp"  data-editable data-campo="fecha_plan">${det.fecha_plan ? fmtFecha(det.fecha_plan) : ''}</td>
-      <td class="col-fr"  data-editable data-campo="fecha_real">${det.fecha_real ? fmtFecha(det.fecha_real) : ''}</td>
-      <td class="col-com" data-editable data-campo="comentarios">${esc(det.comentarios || '')}</td>
-      ${semanaCols}
+      <td class="col-resp"${ed} data-campo="responsable_id">${esc(resp || '')}</td>
+      <td class="col-fecha"${ed} data-campo="inicio_programado">${d.inicio_programado ? fmtFecha(d.inicio_programado) : ''}</td>
+      <td class="col-fecha"${ed} data-campo="fin_programado">${d.fin_programado ? fmtFecha(d.fin_programado) : ''}</td>
+      <td class="col-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>
+      <td class="col-fecha col-seg${ref ? ' arr-ref' : ''}" title="${ref ? `Sin registro en esta reunión: se muestra la revisión del ${fmtFecha(ref.fecha_revision)}` : ''}">
+        ${seg.fecha_revision ? fmtFecha(seg.fecha_revision) : ''}${n ? ` <button class="btn-icono arr-hist" data-hist="${esc(c)}" title="Historial de seguimiento (${n})">🕘</button>` : ''}</td>
+      <td class="col-avance col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="avance">${seg.avance != null ? `${Number(seg.avance)}%` : ''}</td>
+      <td class="col-com col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="comentarios">${esc(seg.comentarios || '')}</td>
+      <td class="col-fecha col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="fin_reprogramado">${seg.fin_reprogramado ? fmtFecha(seg.fin_reprogramado) : ''}</td>
     </tr>`;
   }).join('');
 
-  const tableWrap = wrap.querySelector('[data-tabla]');
-  tableWrap.innerHTML = `<div class="arr-tabla-scroll">
-    <table class="arr-tabla">
-      <thead>${thead}</thead>
-      <tbody>${tbody}</tbody>
-    </table>
-  </div>`;
-
-  tableWrap.addEventListener('change', onCheckChange);
-  tableWrap.addEventListener('dblclick', onCeldaDobleClick);
+  const tabla = wrap.querySelector('[data-tabla]');
+  tabla.innerHTML = `<div class="arr-tabla-scroll"><table class="arr-tabla">
+    <thead>
+      <tr class="arr-grupos"><th colspan="9" class="arr-def">Definición — reunión de definición</th>
+        <th colspan="4" class="arr-seg">Seguimiento — reunión del ${fmtFecha(estado.reunion)}</th></tr>
+      <tr>
+        <th class="arr-def col-item">Ítem</th><th class="arr-def">Proceso</th><th class="arr-def">Área Líder</th>
+        <th class="arr-def">Obligatorio</th><th class="arr-def">Descripción de Actividades</th><th class="arr-def">Responsable</th>
+        <th class="arr-def">Inicio programado</th><th class="arr-def">Fin programado</th><th class="arr-def">Comentarios</th>
+        <th class="arr-seg">Fecha de revisión</th><th class="arr-seg">% Avance Acumulado</th><th class="arr-seg">Comentarios</th>
+        <th class="arr-seg">Fin re-programado</th>
+      </tr>
+    </thead>
+    <tbody>${filas || '<tr><td colspan="13" class="nota">Sin ítems con estos filtros.</td></tr>'}</tbody>
+  </table></div>`;
+  tabla.onclick = e => {
+    const h = e.target.closest('[data-hist]');
+    if (h) return mostrarHistorial(h.dataset.hist);
+    const td = e.target.closest('[data-editable]');
+    if (td && !td.querySelector('input,select')) editarCelda(wrap, td);
+  };
 }
 
-// ── Edición inline ────────────────────────────────────────────────────────────
+// ── Edición en la celda ───────────────────────────────────────────────────────
 
-function onCheckChange(e) {
-  const chk = e.target.closest('.chk');
-  if (!chk) return;
-  const itemCodigo = chk.dataset.item;
-  const semIdx = parseInt(chk.dataset.sem, 10);
-  const tipo = chk.dataset.tipo;
-  const valor = chk.checked;
-  guardarSemana(itemCodigo, semIdx, tipo, valor);
-}
-
-async function guardarSemana(itemCodigo, semIdx, tipo, valor) {
-  const det = estado.detalle.get(itemCodigo) || {};
-  const semanas = [...(det.semanas || [])];
-  while (semanas.length <= semIdx) semanas.push({});
-  semanas[semIdx] = { ...semanas[semIdx], [tipo]: valor };
-
-  try {
-    const [guardado] = await api.upsert('programa_arranque_detalle', {
-      programa_id: estado.programa.id,
-      item_codigo: itemCodigo,
-      semanas,
-    }, 'programa_id,item_codigo');
-
-    estado.detalle.set(itemCodigo, { ...det, ...guardado });
-  } catch (e) {
-    mostrarError(mensajeError(e));
-  }
-}
-
-function onCeldaDobleClick(e) {
-  const td = e.target.closest('[data-editable]');
-  if (!td) return;
-  if (td.querySelector('input,textarea')) return;
-
-  const fila = td.closest('[data-item-row]');
-  const itemCodigo = fila?.dataset.itemRow;
+function editarCelda(wrap, td) {
+  const codigo = td.closest('[data-item-row]').dataset.itemRow;
   const campo = td.dataset.campo;
-  if (!itemCodigo || !campo) return;
-
-  const valorActual = estado.detalle.get(itemCodigo)?.[campo] || '';
-  const esFecha = campo.startsWith('fecha');
-
-  td.innerHTML = esFecha
-    ? `<input type="date" class="cel-input" value="${valorActual}">`
-    : `<input type="text" class="cel-input" value="${esc(valorActual)}" placeholder="${campo}">`;
-
-  const inp = td.querySelector('input');
+  const esSeg = td.hasAttribute('data-seg');
+  const actual = esSeg ? segDe(codigo)?.[campo] : estado.detalle.get(codigo)?.[campo];
+  let control;
+  if (campo === 'responsable_id') {
+    const { lista, soloProyecto } = usuariosProyecto();
+    control = `<select class="cel-input"><option value="">— Sin asignar —</option>
+      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === actual ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}
+      ${soloProyecto ? '' : '<option disabled>(el proyecto aún no tiene miembros: se listan todos los usuarios)</option>'}</select>`;
+  } else if (campo === 'avance') {
+    control = `<input type="number" class="cel-input" min="0" max="100" step="1" value="${actual ?? ''}" placeholder="%">`;
+  } else if (/programado|reprogramado/.test(campo)) {
+    control = `<input type="date" class="cel-input" value="${actual || ''}">`;
+  } else {
+    control = `<input type="text" class="cel-input" value="${esc(actual || '')}">`;
+  }
+  td.innerHTML = control;
+  const inp = td.querySelector('input,select');
   inp.focus();
-  inp.select?.();
-  inp.addEventListener('blur', () => guardarCampo(itemCodigo, campo, inp.value, td));
+  let terminado = false;
+  const terminar = async guardar => {
+    if (terminado) return;
+    terminado = true;
+    if (guardar) {
+      const v = inp.value.trim();
+      try {
+        if (esSeg) await guardarSeguimiento(codigo, campo, v);
+        else await guardarDefinicion(codigo, campo, v);
+      } catch (e) { mostrarError(mensajeError(e)); }
+    }
+    pintarKpis(wrap);
+    pintarTabla(wrap);
+  };
+  inp.addEventListener('blur', () => terminar(true));
+  if (inp.tagName === 'SELECT') inp.addEventListener('change', () => inp.blur());
   inp.addEventListener('keydown', ev => {
     if (ev.key === 'Enter') inp.blur();
-    if (ev.key === 'Escape') {
-      inp.value = valorActual;
-      inp.blur();
-    }
+    if (ev.key === 'Escape') terminar(false);
   });
 }
 
-async function guardarCampo(itemCodigo, campo, valor, td) {
-  const det = estado.detalle.get(itemCodigo) || {};
-  const valFinal = valor.trim() || null;
-
-  try {
-    const [guardado] = await api.upsert('programa_arranque_detalle', {
-      programa_id: estado.programa.id,
-      item_codigo: itemCodigo,
-      [campo]: valFinal,
-    }, 'programa_id,item_codigo');
-
-    estado.detalle.set(itemCodigo, { ...det, ...guardado });
-  } catch (e) {
-    mostrarError(mensajeError(e));
-    td.textContent = det[campo] || '';
-    return;
+async function guardarDefinicion(codigo, campo, v) {
+  const det = estado.detalle.get(codigo) || {};
+  const cambios = { [campo]: v || null };
+  if (campo === 'responsable_id') cambios.responsable = v ? nombre(v) : null;
+  // Como en el formato: si no tiene fin programado, se propone inicio + 90 días
+  if (campo === 'inicio_programado' && v && !det.fin_programado) cambios.fin_programado = sumarDias(v, DIAS_FIN_POR_DEFECTO);
+  if (campo === 'fin_programado' && v && det.inicio_programado && v < det.inicio_programado) {
+    throw new Error('El fin programado no puede ser anterior al inicio programado.');
   }
-
-  if (campo.startsWith('fecha')) {
-    td.textContent = valFinal ? fmtFecha(valFinal) : '';
-  } else {
-    td.textContent = valFinal || '';
-  }
+  const [g] = await api.upsert('programa_arranque_detalle',
+    { programa_id: estado.programa.id, item_codigo: codigo, ...cambios }, 'programa_id,item_codigo');
+  estado.detalle.set(codigo, { ...det, ...g });
 }
 
-// ── Configurar cabecera ───────────────────────────────────────────────────────
-
-async function configurarCabecera() {
-  if (!esGestor() && !esAdmin()) {
-    toast('Solo los gestores pueden configurar la cabecera.', 'warn');
-    return;
+async function guardarSeguimiento(codigo, campo, v) {
+  let valor = v || null;
+  if (campo === 'avance' && valor !== null) {
+    valor = Number(valor);
+    if (!(valor >= 0 && valor <= 100)) throw new Error('El % de avance debe estar entre 0 y 100.');
+    const previo = estado.seguimientos.filter(s => s.item_codigo === codigo && s.fecha_revision < estado.reunion).at(-1);
+    if (previo?.avance != null && valor < Number(previo.avance)) {
+      ok(`Atención: el avance acumulado baja de ${Number(previo.avance)}% a ${valor}%.`);
+    }
   }
-  const p = estado.programa;
-  const campos = await pedirDatos('Configurar Programa de Arranque', [
-    { id: 'cr_proyecto',       label: 'CR / Proyecto',              type: 'text', value: p.cr_proyecto || '' },
-    { id: 'fecha_movilizacion', label: 'Fecha inicio movilización', type: 'date', value: p.fecha_movilizacion || '' },
-    { id: 'fecha_construccion', label: 'Fecha inicio construcción', type: 'date', value: p.fecha_construccion || '' },
-    { id: 'fecha_actualizacion', label: 'Fecha actualización',      type: 'date', value: p.fecha_actualizacion || '' },
-    { id: 'num_semanas',       label: 'Número de semanas (4-20)',    type: 'number', value: estado.numSemanas },
-  ]);
-  if (!campos) return;
+  const [g] = await api.upsert('programa_arranque_seguimiento',
+    { programa_id: estado.programa.id, item_codigo: codigo, fecha_revision: estado.reunion, [campo]: valor },
+    'programa_id,item_codigo,fecha_revision');
+  estado.seguimientos = estado.seguimientos.filter(s => s.id !== g.id).concat(g)
+    .sort((a, b) => a.fecha_revision.localeCompare(b.fecha_revision));
+  if (!estado.reuniones.includes(estado.reunion)) estado.reuniones = [...estado.reuniones, estado.reunion].sort();
+}
 
-  const numSem = Math.max(4, Math.min(20, parseInt(campos.num_semanas, 10) || 8));
-  try {
-    const actualizado = await api.update('programa_arranque', p.id, {
-      cr_proyecto: campos.cr_proyecto || null,
-      fecha_movilizacion: campos.fecha_movilizacion || null,
-      fecha_construccion: campos.fecha_construccion || null,
-      fecha_actualizacion: campos.fecha_actualizacion || null,
-      num_semanas: numSem,
-    });
-    estado.programa = actualizado;
-    estado.numSemanas = numSem;
+// ── Historial de seguimiento de un ítem ───────────────────────────────────────
 
-    // Re-pintar todo
-    const el = document.querySelector('#contenido');
-    if (el) render(el, {});
-    else toast('Configuración guardada. Recarga para ver cambios.');
-  } catch (e) {
-    mostrarError(mensajeError(e));
-  }
+function mostrarHistorial(codigo) {
+  const item = estado.items.find(i => i.item_codigo === codigo);
+  const filas = estado.seguimientos.filter(s => s.item_codigo === codigo).slice().reverse();
+  modal({
+    titulo: `Seguimiento del ítem ${codigo}`, ancho: 720,
+    cuerpo: `<p class="nota">${esc(item?.descripcion || '')}</p>
+      <table class="arr-tabla"><thead><tr><th class="arr-seg">Fecha de revisión</th><th class="arr-seg">% Avance</th>
+        <th class="arr-seg">Comentarios</th><th class="arr-seg">Fin re-programado</th><th class="arr-seg">Registró</th></tr></thead>
+      <tbody>${filas.map(s => `<tr><td>${fmtFecha(s.fecha_revision)}</td><td>${s.avance != null ? Number(s.avance) + '%' : ''}</td>
+        <td style="white-space:normal">${esc(s.comentarios || '')}</td><td>${s.fin_reprogramado ? fmtFecha(s.fin_reprogramado) : ''}</td>
+        <td>${esc(nombre(s.created_by) || '')}</td></tr>`).join('')}</tbody></table>`,
+  });
+}
+
+// ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
+
+async function exportarExcel() {
+  const XLSX = await libExcel();
+  const p = proyecto(estado.proyId) || {};
+  const libro = XLSX.utils.book_new();
+  const datos = CAMPOS_INFO.map(c => [c.label, c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : (p[c.name] || '')]);
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], ...datos.map(r => ['', ...r])]), '0.Datos');
+  const cab = ['Ítem', 'Proceso', 'Área Líder', 'Obligatorio', 'Descripción de Actividades', 'Responsable', 'Inicio programado',
+    'Fin programado', 'Comentarios', '', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios', 'Fin re-programado'];
+  const filas = estado.items.map(i => {
+    const d = estado.detalle.get(i.item_codigo) || {};
+    const s = segVigente(i.item_codigo) || {};
+    return [i.item_codigo, i.proceso, i.area_lider, i.obligatorio ? 'Sí' : '', i.descripcion,
+      d.responsable_id ? nombre(d.responsable_id) || d.responsable : d.responsable || '', d.inicio_programado || '', d.fin_programado || '',
+      d.comentarios || '', '', s.fecha_revision || '', s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '', s.fin_reprogramado || ''];
+  });
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], cab, ...filas]), '1.Programa de arranque');
+  const hist = estado.seguimientos.map(s => [s.item_codigo, s.fecha_revision, s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '',
+    s.fin_reprogramado || '', nombre(s.created_by) || '']);
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Ítem', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios',
+    'Fin re-programado', 'Registró'], ...hist]), 'Historial de seguimiento');
+  XLSX.writeFile(libro, `CR-PG-SGP-01-F1 Programa de Arranque ${p.codigo || ''} ${fmtFecha(estado.reunion).replaceAll('/', '-')}.xlsx`);
 }

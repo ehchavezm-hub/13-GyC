@@ -10,6 +10,7 @@ export const NAV = [
   { grupo: 'Administración' },
   { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Documentos' },
+  { ruta: '/informacion-proyecto', ico: 'ℹ️', texto: 'Información del proyecto', si: esStaff },
   { ruta: '/programa-arranque', ico: '📋', texto: 'Programa de arranque', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Plan de gestión', si: esStaff },
   { ruta: '/backlog', ico: '🗃', texto: 'Plan de construcción', si: esStaff },
@@ -17,15 +18,9 @@ export const NAV = [
   { grupo: 'Seguimiento' },
   { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
-  { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
   { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
   { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
-  { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
-  { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
-  // Al final del menú y para todos los usuarios de todas las empresas (pedido q7)
-  { grupo: 'Todas las empresas' },
-  { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
 ];
 
 let filtroProy = '';
@@ -42,7 +37,6 @@ export function montarLayout(raiz, { alSalir }) {
       <span class="flex"></span>
       <span class="tam-letra" title="Tamaño de letra y de las filas"><button data-a="letra-normal" aria-label="Letra normal">A</button><button data-a="letra-grande" aria-label="Letra grande">A+</button></span>
       <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
-      <button class="btn-icono" data-a="ayuda" title="Ayuda y recorrido guiado" aria-label="Ayuda">❔</button>
       <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
     </header>
@@ -97,7 +91,6 @@ export function montarLayout(raiz, { alSalir }) {
     if (a === 'usuario') menuUsuario(alSalir);
     if (a === 'actualizar') location.reload();
     if (a === 'actualizar-menu') menuActualizar();
-    if (a === 'ayuda') import('../views/ayuda.js').then(m => m.iniciarRecorrido(true));
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto(null, { sub: true })));
 
