@@ -104,10 +104,11 @@ async function usuarios(el) {
   });
 }
 
-// Contraseña temporal legible (sin caracteres que se confunden: 0/O, 1/l/I)
+// Contraseña temporal legible (sin caracteres que se confunden: 0/O, 1/l/I). 16 caracteres: cumple también
+// la política de Clerk si exige un largo mínimo mayor que 8 (se configura en el panel de Clerk → Password).
 function generarClave() {
   const c = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const n = crypto.getRandomValues(new Uint32Array(10));
+  const n = crypto.getRandomValues(new Uint32Array(16));
   return Array.from(n, x => c[x % c.length]).join('');
 }
 
