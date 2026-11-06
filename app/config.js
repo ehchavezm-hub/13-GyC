@@ -3,6 +3,6 @@
 // NUNCA escriba aquí la clave secreta de Clerk.
 // Si se deja vacío, el aplicativo funciona en modo demostración (datos ficticios en el navegador).
 window.GYC_CONFIG = {
-  clerkPublishableKey: '',
+  clerkPublishableKey: 'pk_test_YWRhcHRlZC10cm9sbC0zNDIxLmNsZXJrLmFjY291bnRzLmRldiQ',
   apiBase: '/api',
 };
