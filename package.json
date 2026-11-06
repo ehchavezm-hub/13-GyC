@@ -1,0 +1,12 @@
+{
+  "name": "gyc",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@clerk/backend": "^1.0.0",
+    "@neondatabase/serverless": "^0.10.0"
+  }
+}
