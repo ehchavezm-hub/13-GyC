@@ -53,6 +53,10 @@ export const ALCANCE = {
     leer: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
     escribir: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
   },
+  programa_arranque_seguimiento: {
+    leer: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
+    escribir: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
+  },
   programa_arranque_items: { leer: 'TRUE', escribir: null },
 
   // Personas

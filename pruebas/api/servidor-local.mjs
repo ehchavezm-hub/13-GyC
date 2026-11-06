@@ -8,9 +8,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import pg from 'pg';
-import { usarEjecutor } from '../../api/_lib/db.js';
+import { usarEjecutor, configurarTipos } from '../../api/_lib/db.js';
 import { usarVerificador } from '../../api/_lib/auth.js';
 
+configurarTipos(pg.types);   // igual que en producción (api/_lib/db.js)
 const URL_BD = process.env.DATABASE_URL_PRUEBAS;
 if (!URL_BD) throw new Error('Defina DATABASE_URL_PRUEBAS (PostgreSQL local).');
 if (/neon\.tech|vercel/i.test(URL_BD)) throw new Error('DATABASE_URL_PRUEBAS parece producción: use un PostgreSQL local.');
@@ -23,11 +24,11 @@ if (process.argv.includes('--reiniciar')) {
   const c = await pool.connect();
   try {
     await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql']) {
+    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql', '037_programa_arranque_r1.sql']) {
       await c.query(readFileSync(path.join(RAIZ, 'db/migrations', m), 'utf8'));
     }
   } finally { c.release(); }
-  console.log('Base reiniciada con 000 + 035 + 036.');
+  console.log('Base reiniciada con 000 + 035 + 036 + 037.');
 }
 
 usarVerificador(async token => token);

@@ -249,21 +249,6 @@ const REPORTES = [
       const nodos = await api.list('organigrama_nodos', { eq: { area_id: store.area.id }, order: [['orden', true]] });
       return (await import('./organigrama.js')).informeEquipo(nodos);
     } },
-  { grupo: 'Configuración', id: 'plantillas', staff: true, titulo: 'Plantillas (recurrentes y de servicio)', filtros: [], orientacion: 'landscape',
-    async generar() {
-      const [pls, items, { columnasPlantilla }] = await Promise.all([
-        api.list('plantillas', { eq: { area_id: store.area.id } }),
-        api.list('plantilla_items', {}),
-        import('./plantillas.js'),
-      ]);
-      return pls.filter(p => p.activa !== false).sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nombre.localeCompare(b.nombre)).map(p => {
-        const de = items.filter(i => i.plantilla_id === p.id).sort((a, b) => (a.orden || 0) - (b.orden || 0))
-          .map(i => ({ ...i, hh_total: DIAS.reduce((s, d) => s + (Number(i[`hh_${d}`]) || 0), 0) }));
-        // Mismas columnas que la pantalla Plantillas (que a su vez son las del Look Ahead)
-        return `<h2>${p.tipo === 'servicio' ? '🧩' : '🔁'} ${esc(p.nombre)}${p.tipo === 'recurrente' ? ` · ${esc(nombre(p.propietario_id))}` : ''} · ${de.length} actividad(es)</h2>` +
-          tablaPDF(columnasDeDefs(columnasPlantilla(p.tipo, p.propietario_id)), de);
-      }).join('') || '<p class="nota">No hay plantillas.</p>';
-    } },
 ];
 
 // ---------- Pantalla ----------

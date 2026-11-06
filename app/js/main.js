@@ -27,6 +27,7 @@ async function verificarUsuarioLocal(id) {
   if (anterior && anterior !== id) await borrarDatosLocales();
 }
 
+ruta('/informacion-proyecto', () => import('./views/informacion-proyecto.js'), { staff: true });
 ruta('/programa-arranque', () => import('./views/programa-arranque.js'), { staff: true });
 ruta('/plan', () => import('./views/plan.js'), { staff: true });
 ruta('/lookahead', () => import('./views/lookahead.js'), { staff: true });
@@ -36,17 +37,13 @@ ruta('/cartera', () => import('./views/cartera.js'));
 ruta('/cartera/:id', () => import('./views/cartera.js'));
 ruta('/tablero', () => import('./views/tablero.js'));
 ruta('/reunion', () => import('./views/reunion.js'), { staff: true });
-ruta('/equipo', () => import('./views/equipo.js'), { staff: true });
 ruta('/proyectos', () => import('./views/proyectos.js'));
 ruta('/proyectos/:id', () => import('./views/proyectos.js'));
 ruta('/proyecto/:id', () => import('./views/proyectos.js'));
 ruta('/actividad/:id', () => import('./views/actividad.js'));
 ruta('/restriccion/:id', () => import('./views/restricciones.js'));
-ruta('/plantillas', () => import('./views/plantillas.js'), { staff: true });
 ruta('/reportes', () => import('./views/reportes.js'));
 ruta('/config/:seccion', () => import('./views/config.js'), { gestor: true });
-ruta('/mejoras', () => import('./views/mejoras.js'));
-ruta('/ayuda', () => import('./views/ayuda.js'));
 ruta('/admin', () => import('./views/admin-console.js').then(m => ({
   render(el) { el.innerHTML = ''; m.showAdminConsole(undefined, el); },
 })), { admin: true });
@@ -123,9 +120,6 @@ async function arrancar() {
       return true;
     },
   });
-  if (!store.usuario.tour_visto) {
-    import('./views/ayuda.js').then(m => m.iniciarRecorrido());
-  }
 }
 
 // Espera el script de Clerk (lo agrega config.js) y lo inicia. Un fallo queda en window.__clerkError

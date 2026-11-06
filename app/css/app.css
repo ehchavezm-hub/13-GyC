@@ -494,3 +494,44 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 .cel-input { width: 100%; border: none; background: var(--fondo); padding: 2px 4px; font: inherit; outline: 1px solid var(--azul-ejec); }
 
 .proy-badge { font-size: 13px; color: var(--texto-2); padding: 2px 8px; background: var(--azul-claro); border-radius: 20px; }
+
+/* ── Programa de Arranque r1: definición (amarillo) y seguimiento (verde), como el formato CR-PG-SGP-01-F1 ── */
+.arr-tabla thead th.arr-def { background: #ffff00; color: #1a1a1a; }
+.arr-tabla thead th.arr-seg { background: #92d050; color: #1a1a1a; }
+.arr-tabla thead .arr-grupos th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.arr-tabla td.col-seg { background: #f3faec; }
+.arr-tabla td.arr-ref { color: var(--texto-3); font-style: italic; }
+.arr-tabla tr.arr-atrasado td.col-item { box-shadow: inset 4px 0 0 #d93025; }
+.arr-tabla .col-fecha { width: 96px; text-align: center; }
+.arr-tabla .col-avance { width: 70px; text-align: center; font-weight: 700; }
+.arr-tabla .col-com { white-space: normal; min-width: 180px; max-width: 280px; }
+.arr-hist { font-size: 12px; padding: 0 2px; vertical-align: middle; }
+.arr-reunion { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 4px 0 12px; font-size: 13px; }
+.arr-reunion label { display: flex; align-items: center; gap: 6px; }
+.arr-leyenda { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; color: #1a1a1a; }
+.arr-leyenda.arr-def { background: #ffff00; }
+.arr-leyenda.arr-seg { background: #92d050; margin-left: 8px; }
+.arr-cab-fields a { font-weight: 600; }
+
+/* ── Información del proyecto ── */
+.info-proy { max-width: 720px; }
+.info-proy-tabla { border-collapse: collapse; width: 100%; margin-bottom: 10px; }
+.info-proy-tabla th, .info-proy-tabla td { border-bottom: 1px solid var(--borde); padding: 10px 12px; text-align: left; font-size: 14px; }
+.info-proy-tabla th { width: 260px; color: var(--texto-2); font-weight: 600; background: #ffffe0; }
+/* Las 13 columnas del formato caben en pantalla: textos largos con salto de línea */
+.pagina-arr .arr-tabla { white-space: normal; width: 100%; table-layout: auto; }
+.pagina-arr .arr-tabla .col-item { width: 38px; }
+.pagina-arr .arr-tabla .col-proceso, .pagina-arr .arr-tabla .col-area { width: auto; min-width: 90px; max-width: 130px; }
+.pagina-arr .arr-tabla .col-oblig { width: 40px; }
+.pagina-arr .arr-tabla .col-desc { min-width: 220px; max-width: 340px; }
+.pagina-arr .arr-tabla .col-resp { min-width: 110px; }
+.pagina-arr .arr-tabla .col-fecha { width: 88px; white-space: nowrap; }
+.pagina-arr .arr-tabla .col-com { min-width: 120px; max-width: 200px; }
+.pagina-arr .arr-tabla thead th { white-space: normal; font-size: 11px; }
+.pagina-arr .arr-tabla td, .pagina-arr .arr-tabla th { padding: 4px 5px; }
+.pagina-arr .arr-tabla .col-desc { min-width: 200px; max-width: 300px; }
+.pagina-arr .arr-tabla .col-com { min-width: 90px; max-width: 170px; }
+.pagina-arr .arr-tabla .col-resp { min-width: 90px; }
+.pagina-arr .arr-tabla .col-proceso, .pagina-arr .arr-tabla .col-area { min-width: 80px; max-width: 110px; }
+.pagina-arr .arr-tabla .col-fecha { width: 80px; }
+.pagina-arr .arr-tabla .col-avance { width: 62px; }

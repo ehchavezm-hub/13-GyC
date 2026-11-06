@@ -1,4 +1,16 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, types } from '@neondatabase/serverless';
+
+/**
+ * Tipos como los devolvía Supabase (PostgREST), que es lo que espera el aplicativo:
+ * date → 'AAAA-MM-DD' (no un Date con hora), numeric y bigint → número (no texto).
+ * Se exporta para aplicar lo mismo al cliente de pruebas (node-postgres).
+ */
+export function configurarTipos(t) {
+  t.setTypeParser(1082, v => v);                                   // date
+  t.setTypeParser(1700, v => (v === null ? null : parseFloat(v)));  // numeric
+  t.setTypeParser(20, v => (v === null ? null : Number(v)));        // bigint (count, bigserial)
+}
+configurarTipos(types);
 
 let _sql = null;
 let _ejecutor = null;   // solo pruebas: reemplaza a Neon por otro cliente (ver pruebas/api)
@@ -6,7 +18,7 @@ let _ejecutor = null;   // solo pruebas: reemplaza a Neon por otro cliente (ver 
 export function getSql() {
   if (!_sql) {
     if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL no configurada');
-    _sql = neon(process.env.DATABASE_URL);
+    _sql = neon(process.env.DATABASE_URL, { types });
   }
   return _sql;
 }
