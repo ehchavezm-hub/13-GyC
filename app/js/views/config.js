@@ -169,14 +169,16 @@ async function nuevoUsuario() {
     ],
     alGuardar: async d => {
       if (String(d.clave).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
-      await api.adminUsuarios('crear', d);
-      creado = d;
+      const r = await api.adminUsuarios('crear', d);
+      creado = { ...d, yaTenia: !!r?.ya_tenia_cuenta, agregado: !!r?.agregado };
     },
   });
   if (!creado) return;
   await cargarCatalogo();
   await render(document.getElementById('contenido'), { seccion: 'usuarios' });
-  mostrarCredenciales(`Usuario creado: ${creado.nombre}`, creado.email.trim().toLowerCase(), creado.clave);
+  if (creado.agregado) return ok(`${creado.nombre} ya tenía usuario en otra empresa: se agregó a esta con el rol elegido (usa su contraseña de siempre).`);
+  mostrarCredenciales(creado.yaTenia ? `Usuario agregado: ${creado.nombre} (ya tenía cuenta; se le asignó esta contraseña temporal)`
+    : `Usuario creado: ${creado.nombre}`, creado.email.trim().toLowerCase(), creado.clave);
 }
 
 async function restablecerClave(p) {
