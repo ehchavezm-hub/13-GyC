@@ -41,41 +41,42 @@ export async function render(el, _params) {
 // ── Carga de datos ────────────────────────────────────────────────────────────
 
 async function cargar() {
-  const proyId = store.proyectoSel?.id;
+  const proyId = store.proyectoSel;   // id del proyecto elegido en el árbol (texto)
   if (!proyId) return;
 
-  const stop = medir('programa-arranque.cargar');
   try {
-    const [items, programas] = await Promise.all([
-      api.list('programa_arranque_items', { order: [['orden', true]] }),
-      api.list('programa_arranque', { eq: { proyecto_id: proyId } }),
-    ]);
-
-    estado.items = items;
-
-    if (!programas.length) {
-      // Auto-crear instancia vacía para este proyecto
-      const [nuevo] = await api.insert('programa_arranque', {
-        proyecto_id: proyId,
-        num_semanas: 8,
-      });
-      estado.programa = nuevo;
-    } else {
-      estado.programa = programas[0];
-    }
-
-    estado.numSemanas = estado.programa.num_semanas || 8;
-
-    const detalles = await api.list('programa_arranque_detalle', {
-      eq: { programa_id: estado.programa.id },
-    });
-
-    estado.detalle = new Map(detalles.map(d => [d.item_codigo, d]));
+    await medir('programa-arranque.cargar', () => cargarDatos(proyId));
   } catch (e) {
     mostrarError(mensajeError(e));
-  } finally {
-    stop();
   }
+}
+
+async function cargarDatos(proyId) {
+  const [items, programas] = await Promise.all([
+    api.list('programa_arranque_items', { order: [['orden', true]] }),
+    api.list('programa_arranque', { eq: { proyecto_id: proyId } }),
+  ]);
+
+  estado.items = items;
+
+  if (!programas.length) {
+    // Auto-crear instancia vacía para este proyecto
+    const [nuevo] = await api.insert('programa_arranque', {
+      proyecto_id: proyId,
+      num_semanas: 8,
+    });
+    estado.programa = nuevo;
+  } else {
+    estado.programa = programas[0];
+  }
+
+  estado.numSemanas = estado.programa.num_semanas || 8;
+
+  const detalles = await api.list('programa_arranque_detalle', {
+    eq: { programa_id: estado.programa.id },
+  });
+
+  estado.detalle = new Map(detalles.map(d => [d.item_codigo, d]));
 }
 
 // ── Cabecera informativa ──────────────────────────────────────────────────────
