@@ -5,22 +5,23 @@ import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { pedirDatos, ok, error, arrastrable } from './ui.js';
+import { icono } from './iconos.js';
 
 export const NAV = [
   { grupo: 'Administración' },
-  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: tieneAdministracion, prefijo: '/admin' },
+  { ruta: '/admin', ico: icono('engranaje'), texto: 'Administración', si: tieneAdministracion, prefijo: '/admin' },
   { grupo: 'Documentos' },
-  { ruta: '/informacion-proyecto', ico: 'ℹ️', texto: 'Información del proyecto', si: esStaff },
-  { ruta: '/programa-arranque', ico: '📋', texto: 'Programa de arranque', si: esStaff },
-  { ruta: '/lookahead', ico: '🔭', texto: 'Plan de gestión', si: esStaff },
-  { ruta: '/backlog', ico: '🗃', texto: 'Plan de construcción', si: esStaff },
-  { ruta: '/cartera', ico: '🗂', texto: 'Programa de cierre', si: () => esStaff() || puede('crear_solicitud') },
+  { ruta: '/informacion-proyecto', ico: icono('info'), texto: 'Información del proyecto', si: esStaff },
+  { ruta: '/programa-arranque', ico: icono('checklist'), texto: 'Programa de arranque', si: esStaff },
+  { ruta: '/lookahead', ico: icono('objetivo'), texto: 'Plan de gestión', si: esStaff },
+  { ruta: '/backlog', ico: icono('capas'), texto: 'Plan de construcción', si: esStaff },
+  { ruta: '/cartera', ico: icono('archivo'), texto: 'Programa de cierre', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },
-  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
-  { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
-  { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
+  { ruta: '/tablero', ico: icono('grafico'), texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
+  { ruta: '/reunion', ico: icono('usuarios'), texto: 'Reunión semanal', si: esStaff },
+  { ruta: '/reportes', ico: icono('impresora'), texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
-  { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
+  { ruta: '/config/usuarios', ico: icono('engranaje'), texto: 'Configuración', si: esGestor, prefijo: '/config' },
 ];
 
 let filtroProy = '';
@@ -37,7 +38,7 @@ export function montarLayout(raiz, { alSalir }) {
       <span class="flex"></span>
       <span class="tam-letra" title="Tamaño de letra y de las filas"><button data-a="letra-normal" aria-label="Letra normal">A</button><button data-a="letra-grande" aria-label="Letra grande">A+</button></span>
       <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
-      <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
+      <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">${icono('campana')}<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
     </header>
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
@@ -168,7 +169,7 @@ function pintarNav() {
   // s10: nombre del proyecto activo como cabecera de los módulos
   const proyActivo = store.proyectoSel ? store.proyectos.find(p => p.id === store.proyectoSel) : null;
   const cabProy = proyActivo
-    ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">📋</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
+    ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">${icono('documento')}</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
     : '';
   navModulos.innerHTML = cabProy + pintar(NAV.slice(corte));
   for (const nav of [navAdmin, navModulos]) nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
@@ -197,7 +198,7 @@ function pintarProyectos() {
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
   const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ` activo${p.padre_id ? ' grupo-activo' : ''}` : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (Subproyecto)' : ''}`)}">
-      <span class="arbol-ico">${sub ? '▫' : '📋'}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
+      <span class="arbol-ico">${icono(sub ? 'subdocumento' : 'documento')}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
   // Proyecto con subproyectos (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
   const hijosDe = p => lista.filter(x => x.padre_id === p.id);
   const nodo = (p, nivel) => {
@@ -205,7 +206,7 @@ function pintarProyectos() {
     if (!hs.length) return item(p, nivel);
     const ab = abierta('p' + p.id);
     return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus subproyectos)`)}">
-        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>
+        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${icono('documento')}</span>
         <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
   };
 
@@ -220,12 +221,12 @@ function pintarProyectos() {
       ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
   };
   const deProg = g => lista.filter(p => p.programa_id === g.id);
-  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
+  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, icono('carpeta'), g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
   const ramasPort = portafolios.map(fp => {
     const gs = programas.filter(g => g.portafolio_id === fp.id);
     const directos = lista.filter(p => p.portafolio_id === fp.id && !idsProg.has(p.programa_id));
     const n = gs.reduce((s, g) => s + deProg(g).length, 0) + directos.length;
-    return rama('f' + fp.id, 1, '🗂', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + raiz(directos).map(p => nodo(p, 2)).join(''), 'arbol-port');
+    return rama('f' + fp.id, 1, icono('maletin'), fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + raiz(directos).map(p => nodo(p, 2)).join(''), 'arbol-port');
   }).join('');
   const progSueltos = programas.filter(g => !idsPort.has(g.portafolio_id)).map(g => ramaProg(g, 1)).join('');
   const sueltos = raiz(lista.filter(p => !idsPort.has(p.portafolio_id) && !idsProg.has(p.programa_id))).map(p => nodo(p, 1)).join('');
@@ -233,7 +234,7 @@ function pintarProyectos() {
   const empresa = store.area?.nombre || 'Empresa';
   const abiertaEmp = abierta('empresa');
   cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel && !store.nivelSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
-      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
+      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">${icono('edificio')}</span>
       <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
     (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
 }
@@ -346,7 +347,7 @@ function menuUsuario(alSalir) {
     <div style="padding:8px 10px"><b>${esc(u.nombre)}</b><div class="nota">${esc(u.email || '')}</div><div class="nota">${esc(ROLES[rol()] || rol())}</div></div>
     <hr style="border:none;border-top:1px solid var(--borde)">
     <button data-a="perfil">Mi perfil</button>
-    ${(store.misEmpresas || []).length > 1 && !u.es_plataforma ? '<button data-a="empresa">🏢 Cambiar de empresa</button>' : ''}
+    ${(store.misEmpresas || []).length > 1 && !u.es_plataforma ? `<button data-a="empresa">${icono('edificio')} Cambiar de empresa</button>` : ''}
     <button data-a="clave">Cambiar contraseña</button>
     <button data-a="salir">Cerrar sesión</button>
     <div class="nota" style="padding:6px 10px 2px;border-top:1px solid var(--borde);margin-top:4px">Versión ${esc(versionApp())}</div></div>`);

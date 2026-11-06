@@ -556,3 +556,26 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 /* Proyecto elegido en el árbol: mismo naranja que la sección activa del menú */
 .proy-item.activo, .proy-item.activo:hover { background: var(--naranja); color: #fff; }
 .proy-item.activo .arbol-ico, .proy-item.activo .cod, .proy-item.activo b, .proy-item.activo span { color: #fff; }
+
+/* ── Íconos de línea (ui/iconos.js): toman el color de la paleta ── */
+.icono { width: 18px; height: 18px; display: block; flex: none; }
+.nav a .ico, .admin-ico, .admin-topbar-ico { display: inline-flex; align-items: center; justify-content: center; }
+.nav a .ico { color: var(--navy); }
+.nav a:hover .ico { color: var(--naranja); }
+.nav a.activo .ico, .nav a.activo:hover .ico { color: var(--blanco); }
+.admin-ico { color: var(--navy); }
+.admin-item.activo .admin-ico { color: var(--naranja); }
+.admin-topbar-ico { color: var(--naranja); }
+.admin-topbar-ico .icono { width: 20px; height: 20px; }
+.nav-proy-activo .ico { color: var(--naranja); display: inline-flex; }
+.nav-proy-activo .icono { width: 16px; height: 16px; }
+.arbol-ico { display: inline-flex; align-items: center; }
+.arbol-ico .icono { width: 15px; height: 15px; }
+.arbol-emp .arbol-ico { color: var(--navy); }
+.arbol-port .arbol-ico { color: var(--azul-d3); }
+.arbol-prog .arbol-ico { color: var(--malva); }
+.proy-item .arbol-ico { color: var(--naranja); }
+.proy-item.activo .arbol-ico, .proy-item.grupo-activo .arbol-ico { color: var(--blanco); }
+.menu-usuario button .icono { width: 15px; height: 15px; display: inline-block; vertical-align: -2px; margin-right: 4px; }
+.btn-icono[data-a="notif"] { color: var(--blanco); display: inline-flex; align-items: center; position: relative; }
+.btn-icono[data-a="notif"] .icono { width: 20px; height: 20px; }

@@ -30,7 +30,6 @@ export async function render(el) {
       <span class="flex"></span>
       <button class="btn btn-sm" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
-    <div data-cab-info class="arr-cab-info"></div>
     <div data-reunion class="arr-reunion"></div>
     <div data-kpis class="kpis"></div>
     <div data-filtros class="arr-filtros"></div>
@@ -49,7 +48,6 @@ export async function render(el) {
 }
 
 function pintarTodo(wrap) {
-  pintarCabInfo(wrap);
   pintarReunion(wrap);
   pintarKpis(wrap);
   pintarFiltros(wrap);
@@ -90,19 +88,6 @@ function usuariosProyecto() {
   const activos = store.perfiles.filter(p => p.activo && !p.eliminado && p.rol !== 'pendiente');
   const delProyecto = activos.filter(p => ids.has(p.id));
   return { lista: (delProyecto.length ? delProyecto : activos).sort((a, b) => a.nombre.localeCompare(b.nombre)), soloProyecto: delProyecto.length > 0 };
-}
-
-// ── Cabecera: información del proyecto (pestaña 0) ────────────────────────────
-
-function pintarCabInfo(wrap) {
-  const p = proyecto(estado.proyId) || {};
-  const v = c => {
-    const x = c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : p[c.name];
-    return x ? (c.type === 'date' ? fmtFecha(x) : x) : '—';
-  };
-  wrap.querySelector('[data-cab-info]').innerHTML = `<div class="arr-cab-fields">
-    ${CAMPOS_INFO.map(c => `<span><b>${esc(c.label)}:</b> ${esc(v(c))}</span>`).join('')}
-    <a href="#/informacion-proyecto">${estado.editable ? '✎ Editar información del proyecto' : 'Ver información del proyecto'}</a></div>`;
 }
 
 // ── Reunión de seguimiento elegida ────────────────────────────────────────────
