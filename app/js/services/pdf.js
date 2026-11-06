@@ -1,4 +1,4 @@
-// Formato estándar de PDF (sección 12.3): encabezado y pie de 6 pt en Urbanist, título de 12 pt #1A365D,
+// Formato estándar de PDF (sección 12.3): encabezado y pie de 6 pt en Urbanist, título de 12 pt #003366,
 // contenido en Manrope, márgenes de 10 mm, A4 vertical u horizontal, nombre PROYECTO-Módulo-DDMMAAAA.pdf.
 import { store, param, nombreProyecto, nombreSeleccion } from '../core/store.js';
 import { esc } from '../core/util.js';
@@ -25,15 +25,15 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
   const cssTxt = s => JSON.stringify(String(s));
   return `  @page {
     margin: 10mm;
-    @top-left { content: ${cssTxt(version)}; font: 6pt 'Urbanist', sans-serif; color: #4A5568; }
-    @top-center { content: ${cssTxt(proy)}; font: 6pt 'Urbanist', sans-serif; color: #4A5568; }
-    @top-right { content: ${cssTxt(fecha + ', ' + hora)}; font: 6pt 'Urbanist', sans-serif; color: #4A5568; }
-    @bottom-left { content: ${cssTxt(firma)}; font: 6pt 'Urbanist', sans-serif; color: #718096; }
-    @bottom-center { content: "—"; font: 6pt 'Urbanist', sans-serif; color: #718096; }
-    @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 6pt 'Urbanist', sans-serif; color: #718096; }
+    @top-left { content: ${cssTxt(version)}; font: 6pt 'Urbanist', sans-serif; color: #555555; }
+    @top-center { content: ${cssTxt(proy)}; font: 6pt 'Urbanist', sans-serif; color: #555555; }
+    @top-right { content: ${cssTxt(fecha + ', ' + hora)}; font: 6pt 'Urbanist', sans-serif; color: #555555; }
+    @bottom-left { content: ${cssTxt(firma)}; font: 6pt 'Urbanist', sans-serif; color: #777777; }
+    @bottom-center { content: "—"; font: 6pt 'Urbanist', sans-serif; color: #777777; }
+    @bottom-right { content: "Página " counter(page) " de " counter(pages); font: 6pt 'Urbanist', sans-serif; color: #777777; }
   }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family: 'Manrope', Arial, sans-serif; color: #1A1A2E; margin: 0; font-size: 9pt; background: #E9EDF3; }
+  body { font-family: 'Manrope', Arial, sans-serif; color: #1A1A2E; margin: 0; font-size: 9pt; background: #E0E0E0; }
   .barra { position: sticky; top: 0; background: #1A1A2E; color: #fff; padding: 8px 14px; display: flex; gap: 8px; align-items: center; font: 13px 'Manrope', sans-serif; z-index: 5; }
   .barra button { border: 1px solid #ffffff44; background: transparent; color: #fff; border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
   .barra button.pri { background: #E8762B; border-color: #E8762B; font-weight: 700; }
@@ -41,26 +41,26 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
   .barra input { font: inherit; padding: 4px 8px; border-radius: 5px; border: none; width: 380px; }
   .hoja { background: #fff; width: 210mm; margin: 16px auto; padding: 10mm; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
   .hoja.land { width: 297mm; }
-  .enc { display: flex; justify-content: space-between; font: 6pt 'Urbanist', sans-serif; color: #4A5568; border-bottom: .5pt solid #CBD5E0; padding-bottom: 2mm; margin-bottom: 4mm; }
-  .pie { display: flex; justify-content: space-between; font: 6pt 'Urbanist', sans-serif; color: #718096; border-top: .5pt solid #CBD5E0; padding-top: 2mm; margin-top: 4mm; }
-  h1.titulo { font-family: 'Urbanist', sans-serif; font-size: 12pt; color: #1A365D; text-align: center; margin: 0 0 5mm; }
-  h2 { font-size: 10pt; color: #1A365D; margin: 5mm 0 2mm; }
+  .enc { display: flex; justify-content: space-between; font: 6pt 'Urbanist', sans-serif; color: #555555; border-bottom: .5pt solid #E0E0E0; padding-bottom: 2mm; margin-bottom: 4mm; }
+  .pie { display: flex; justify-content: space-between; font: 6pt 'Urbanist', sans-serif; color: #777777; border-top: .5pt solid #E0E0E0; padding-top: 2mm; margin-top: 4mm; }
+  h1.titulo { font-family: 'Urbanist', sans-serif; font-size: 12pt; color: #003366; text-align: center; margin: 0 0 5mm; }
+  h2 { font-size: 10pt; color: #003366; margin: 5mm 0 2mm; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; page-break-inside: auto; }
   table.fija { table-layout: fixed; }
   table.fija td, table.fija th { overflow-wrap: break-word; word-break: normal; hyphens: auto; white-space: pre-wrap; }
   table.fija .badge { white-space: nowrap; overflow-wrap: normal; }
   table.fija td.fecha { white-space: nowrap; overflow-wrap: normal; }
   tr { page-break-inside: avoid; }
-  th { background: #EBF2F8; color: #1A365D; text-align: left; font-weight: 700; }
-  th, td { border: .5pt solid #CBD5E0; padding: 1.4mm 2mm; font-size: 8pt; vertical-align: top; }
+  th { background: #EAEFF4; color: #003366; text-align: left; font-weight: 700; }
+  th, td { border: .5pt solid #E0E0E0; padding: 1.4mm 2mm; font-size: 8pt; vertical-align: top; }
   td.num, th.num { text-align: right; }
   .kpis { display: flex; gap: 3mm; margin-bottom: 4mm; flex-wrap: wrap; }
-  .kpi { flex: 1; min-width: 28mm; border: .5pt solid #CBD5E0; border-top: 2pt solid var(--kc, #4E79A7); border-radius: 2mm; padding: 2mm 3mm; }
-  .kpi small { display: block; color: #718096; font-size: 6.5pt; text-transform: uppercase; }
-  .kpi b { font-size: 13pt; color: var(--kc, #1A365D); }
+  .kpi { flex: 1; min-width: 28mm; border: .5pt solid #E0E0E0; border-top: 2pt solid var(--kc, #4E79A7); border-radius: 2mm; padding: 2mm 3mm; }
+  .kpi small { display: block; color: #777777; font-size: 6.5pt; text-transform: uppercase; }
+  .kpi b { font-size: 13pt; color: var(--kc, #003366); }
   .badge { display: inline-block; padding: 0 2mm; border-radius: 2mm; font-size: 7pt; font-weight: 700; color: var(--c); border: .5pt solid var(--c); }
-  .nota { color: #718096; font-size: 7.5pt; }
-  .barra-prog { height: 2.4mm; background: #F1F4F8; border: .3pt solid #CBD5E0; border-radius: 1mm; overflow: hidden; min-width: 12mm; }
+  .nota { color: #777777; font-size: 7.5pt; }
+  .barra-prog { height: 2.4mm; background: #F8FAFC; border: .3pt solid #E0E0E0; border-radius: 1mm; overflow: hidden; min-width: 12mm; }
   .barra-prog > i { display: block; height: 100%; background: var(--bc, #59A14F); }
   img, svg, canvas { max-width: 100%; }
   @media print {

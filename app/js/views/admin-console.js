@@ -241,7 +241,7 @@ async function panelResumen(el) {
         <thead><tr><th>Rol</th><th>Cantidad</th></tr></thead>
         <tbody>
           ${Object.entries(contPorRol).map(([r, c]) => `<tr>
-            <td>${badge(rolLabel(r), COLOR_ROL[r] || '#888')}</td>
+            <td>${badge(rolLabel(r), COLOR_ROL[r] || '#777777')}</td>
             <td><b>${c}</b></td>
           </tr>`).join('')}
         </tbody>
@@ -280,7 +280,7 @@ async function panelProyectos(el) {
     api.list('programas', { eq: { area_id: store.area.id } }).catch(() => []),
     api.list('proyecto_lideres', {}).catch(() => []),
   ]);
-  const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+  const colorEst = { activo: '#59A14F', propuesto: '#E8762B', en_pausa: '#BAB0AC', cerrado: '#555555', rechazado: '#E74C3C' };
   const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
   const propuestos = proyectos.filter(p => p.estado === 'propuesto');
   const nomPort = id => portafolios.find(x => x.id === id)?.nombre || '';
@@ -309,7 +309,7 @@ async function panelProyectos(el) {
           <td>${esc(nomPort(p.portafolio_id) || '—')}</td>
           <td>${esc(nomProg(p.programa_id) || '—')}</td>
           <td>${esc(etiqueta(p.gerencia_id) || '—')}</td>
-          <td>${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888')}</td>
+          <td>${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#777777')}</td>
           <td><small>${esc(lidNames(p) || '—')}</small></td>
           <td>
             <button class="btn btn-xs" data-editar="${p.id}">Editar</button>
@@ -366,14 +366,14 @@ async function cargarEstructura() {
   return { portafolios, programas, proyectos };
 }
 
-const estadoEst = e => e === 'inactivo' ? badge('Inactivo', '#888') : badge('Activo', '#2e7d32');
+const estadoEst = e => e === 'inactivo' ? badge('Inactivo', '#777777') : badge('Activo', '#59A14F');
 
 async function panelEstructura(el) {
   const [{ portafolios, programas, proyectos }, lideresProy] = await Promise.all([
     cargarEstructura(),
     api.list('proyecto_lideres', {}).catch(() => []),
   ]);
-  const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+  const colorEst = { activo: '#59A14F', propuesto: '#E8762B', en_pausa: '#BAB0AC', cerrado: '#555555', rechazado: '#E74C3C' };
   const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
   const propuestos = proyectos.filter(p => p.estado === 'propuesto');
   const lidNames = p => lideresProy.filter(l => l.proyecto_id === p.id).map(l => nombre(l.usuario_id)).filter(Boolean).join(', ');
@@ -388,7 +388,7 @@ async function panelEstructura(el) {
       <div class="est-proy-fila">
         <span class="est-proy-nombre"><b>${esc(p.codigo)}</b> · ${esc(p.nombre_corto)}</span>
         <span class="est-proy-meta">
-          ${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888')}
+          ${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#777777')}
           ${ger ? `<small class="nota" style="margin-left:4px">${esc(ger)}</small>` : ''}
           ${lids ? `<small class="nota" style="margin-left:4px">👤 ${esc(lids)}</small>` : ''}
         </span>

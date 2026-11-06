@@ -168,7 +168,7 @@ function pintar() {
       labels: etq,
       datasets: [
         { type: 'bar', label: 'PAC %', data: pacs, backgroundColor: serie.map(s => colorPAC(s.pac)), borderRadius: 4 },
-        { type: 'line', label: 'Tendencia (4 sem.)', data: tend, borderColor: '#1A365D', borderDash: [5, 4], pointRadius: 0, tension: .3 },
+        { type: 'line', label: 'Tendencia (4 sem.)', data: tend, borderColor: '#003366', borderDash: [5, 4], pointRadius: 0, tension: .3 },
         { type: 'line', label: `Meta ${Math.round(meta * 100)} %`, data: etq.map(() => Math.round(meta * 100)), borderColor: '#E8762B', pointRadius: 0, borderWidth: 1.5 },
       ],
     },

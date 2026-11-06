@@ -863,7 +863,7 @@ begin
     {"codigo":"con_restriccion","valor":"Con restricción","color":"#E15759","protegido":true},
     {"codigo":"lista","valor":"Lista","color":"#59A14F","protegido":true},
     {"codigo":"trasladada","valor":"Trasladada al plan","color":"#4E79A7","protegido":true},
-    {"codigo":"cancelada","valor":"Cancelada","color":"#9E9E9E","protegido":true}]');
+    {"codigo":"cancelada","valor":"Cancelada","color":"#BAB0AC","protegido":true}]');
   perform public.sembrar_lista(p_area, 'estados_compromiso', 'Estados de compromiso', '[
     {"codigo":"programado","valor":"Programado","color":"#EDC948","protegido":true},
     {"codigo":"completado","valor":"Completado","color":"#59A14F","protegido":true},

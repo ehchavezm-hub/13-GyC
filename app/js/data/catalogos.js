@@ -56,7 +56,7 @@ export const LISTAS_INICIALES = [
   ['tipos_actividad', 'Tipos de compromiso', [['programada', 'Programada', null, 1], ['no_programada', 'No programada', null, 1]]],
   ['estados_la', 'Estados de Look Ahead', [
     ['pendiente', 'Pendiente', '#BAB0AC', 1], ['con_restriccion', 'Con restricción', '#E15759', 1], ['lista', 'Lista', '#59A14F', 1],
-    ['trasladada', 'Trasladada al plan', '#4E79A7', 1], ['cancelada', 'Cancelada', '#9E9E9E', 1]]],
+    ['trasladada', 'Trasladada al plan', '#4E79A7', 1], ['cancelada', 'Cancelada', '#BAB0AC', 1]]],
   ['estados_compromiso', 'Estados de compromiso', [
     ['programado', 'Programado', '#EDC948', 1], ['completado', 'Completado', '#59A14F', 1],
     ['no_completado', 'No completado', '#E15759', 1], ['cancelado', 'Cancelado', '#BAB0AC', 1]]],
@@ -150,7 +150,7 @@ export const ROLES = {
 
 /** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
 export const PLANIFICADORES = ['lider'];
-export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };
+export const COLOR_ROL = { superadmin: '#003366', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };
 
 /**
  * Listas, parámetros y permisos iniciales de una empresa nueva (pedido 113). Salen de estos mismos catálogos;
@@ -168,3 +168,12 @@ export function semillaEmpresa() {
     Object.entries(acciones).map(([accion, permitido]) => ({ rol, accion, permitido })));
   return { listas, parametros, permisos };
 }
+
+// Paleta Tableau Professional Analytics (PALETAS_tableau.pptx): colores permitidos para los valores de las listas
+// (estados, prioridades, ubicaciones…). Los mismos que las variables de app/css/app.css.
+export const PALETA = [
+  ['#E8762B', 'Tableau Orange'], ['#4E79A7', 'Steel Blue'], ['#F28E2B', 'Sandy Brown'], ['#E15759', 'Terra Cotta'],
+  ['#76B7B2', 'Caribbean'], ['#59A14F', 'Apple Green'], ['#EDC948', 'Sunflower'], ['#B07AA1', 'Mauve'],
+  ['#FF9DA7', 'Flamingo'], ['#BAB0AC', 'Silver'], ['#003366', 'Navy Dark'], ['#1F77B4', 'Blue D3'],
+  ['#2ECC71', 'Success Green'], ['#E74C3C', 'Danger Red'], ['#1A1A2E', 'Tableau Dark'],
+];
