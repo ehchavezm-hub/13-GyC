@@ -28,6 +28,7 @@ before(async () => {
     await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
     await c.query(migracion('000_gyc_neon_completo.sql'));
     await c.query(migracion('035_compatibilidad_api.sql'));
+    await c.query(migracion('036_cuentas_preasignadas.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {
@@ -252,4 +253,15 @@ test('rpc: respaldo de la empresa, eliminar proyecto, eliminar usuario', async (
   assert.equal(aud[0].usuario_id, 'user_admin');
   await A.adminUsuarios('eliminar_empresa', { area_id: ctx.area2 });
   assert.equal((await A.adminUsuarios('empresas')).empresas.length, 1);
+});
+
+test('cuenta preasignada por correo: entra directo con su rol', async () => {
+  await pool.query(`INSERT INTO cuentas_preasignadas (email, rol, es_plataforma, area_id) VALUES ('dueno@ejemplo.com', 'superadmin', true, $1)`, [ctx.area]);
+  usarVerificador(async token => token);
+  const [p] = await pool.query(`SELECT * FROM gyc_alta_usuario('user_dueno', 'Dueño', 'Dueno@Ejemplo.com')`).then(r => r.rows);
+  assert.equal(p.rol, 'superadmin');
+  assert.equal(p.es_plataforma, true);
+  assert.equal(p.area_id, ctx.area);
+  const plat = await cliente('user_dueno').adminUsuarios('plataforma');
+  assert.ok(plat.areas.length >= 1);
 });

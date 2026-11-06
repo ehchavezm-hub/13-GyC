@@ -36,7 +36,7 @@ api/
   datos.js      CRUD genérico (list/insert/upsert/update/updateWhere/remove/removeWhere/rpc)
   admin-usuarios.js  Usuarios (Clerk), empresas, consola de la plataforma y mejoras
 db/
-  migrations/   000_gyc_neon_completo.sql + 035_compatibilidad_api.sql — correr en ese orden en Neon SQL Editor
+  migrations/   000_gyc_neon_completo.sql → 035_compatibilidad_api.sql → 036_cuentas_preasignadas.sql (Neon SQL Editor, en orden)
   legado-supabase/  001–034 originales de Supabase (solo referencia; NO ejecutar en Neon)
   tests/run.sh  Prueba 000 + 035 en un PostgreSQL temporal y luego el API (pruebas/api)
 pruebas/
@@ -61,8 +61,9 @@ pruebas/
 
 ## Despliegue
 1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY` (opcional `CLERK_JWT_KEY` para verificar sin red)
-2. Neon: ejecutar `db/migrations/000_gyc_neon_completo.sql` y luego `035_compatibilidad_api.sql` en el SQL Editor
-   (si la base ya tiene la 000, basta con la 035; se puede ejecutar más de una vez)
+2. Neon: ejecutar `db/migrations/000_gyc_neon_completo.sql`, `035_compatibilidad_api.sql` y `036_cuentas_preasignadas.sql`
+   en el SQL Editor, en ese orden (035 y 036 se pueden ejecutar más de una vez)
 3. Clerk: copiar Publishable Key → `app/config.js` → `clerkPublishableKey` (única fuente; `config.js` carga Clerk)
 4. La primera persona que ingresa queda como super administrador principal y propietaria de la plataforma;
-   las siguientes quedan "pendiente" hasta que un gestor les asigne rol
+   las siguientes quedan "pendiente" hasta que un gestor les asigne rol, salvo que su correo esté en
+   `cuentas_preasignadas` (rol, empresa, principal y propietario asignados antes del primer ingreso)
