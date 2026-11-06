@@ -1,5 +1,5 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
-import { api, modoDemo, mensajeError } from '../data/api.js';
+import { api, mensajeError } from '../data/api.js';
 import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
@@ -39,7 +39,6 @@ export function montarLayout(raiz, { alSalir }) {
       <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
       <a class="logo" href="#/"><span>Gy<b>C</b></span></a>
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
-      ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
       <span class="tam-letra" title="Tamaño de letra y de las filas"><button data-a="letra-normal" aria-label="Letra normal">A</button><button data-a="letra-grande" aria-label="Letra grande">A+</button></span>
       <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
@@ -352,16 +351,14 @@ function menuUsuario(alSalir) {
     <hr style="border:none;border-top:1px solid var(--borde)">
     <button data-a="perfil">Mi perfil</button>
     ${(store.misEmpresas || []).length > 1 && !u.es_plataforma ? '<button data-a="empresa">🏢 Cambiar de empresa</button>' : ''}
-    ${modoDemo ? '<button data-a="cambiar">Cambiar de usuario de demostración</button><button data-a="reiniciar">Reiniciar datos de demostración</button>'
-      : '<button data-a="clave">Cambiar contraseña</button>'}
+    <button data-a="clave">Cambiar contraseña</button>
     <button data-a="salir">Cerrar sesión</button>
     <div class="nota" style="padding:6px 10px 2px;border-top:1px solid var(--borde);margin-top:4px">Versión ${esc(versionApp())}</div></div>`);
   document.body.append(m);
   m.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     cerrarFlotantes();
-    if (a === 'salir' || a === 'cambiar') alSalir();
-    if (a === 'reiniciar') { api.reiniciar(); alSalir(); }
+    if (a === 'salir') alSalir();
     if (a === 'empresa') await cambiarDeEmpresa();
     if (a === 'perfil') {
       await pedirDatos({
@@ -377,11 +374,12 @@ function menuUsuario(alSalir) {
     if (a === 'clave') {
       await pedirDatos({
         titulo: 'Cambiar contraseña',
-        campos: [{ name: 'p1', label: 'Nueva contraseña', type: 'password', required: true }, { name: 'p2', label: 'Repetir contraseña', type: 'password', required: true }],
+        campos: [{ name: 'p0', label: 'Contraseña actual', type: 'password', required: true },
+          { name: 'p1', label: 'Nueva contraseña', type: 'password', required: true }, { name: 'p2', label: 'Repetir contraseña', type: 'password', required: true }],
         alGuardar: async d => {
           if (d.p1.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
           if (d.p1 !== d.p2) throw new Error('Las contraseñas no coinciden.');
-          await api.auth.cambiarClave(d.p1); ok('Contraseña actualizada.');
+          await api.auth.cambiarClave(d.p1, d.p0); ok('Contraseña actualizada.');
         },
       });
     }

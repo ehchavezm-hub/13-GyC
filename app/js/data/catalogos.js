@@ -1,5 +1,5 @@
 // Valores iniciales de listas, parámetros y permisos. Deben coincidir con
-// db/migrations/003_datos_iniciales.sql (se usan en el modo demostración).
+// db/migrations/000_gyc_neon_completo.sql (sembrar_area); los usa la creación de empresas (semillaEmpresa).
 
 // Grupos de listas en Configuración → Listas (el grupo de cada lista se puede cambiar; este es el inicial)
 export const GRUPOS_LISTAS = ['Gerencias, proyectos y servicios', 'Detalle de actividades y seguimiento', 'Configuración general del aplicativo', 'Otras listas'];

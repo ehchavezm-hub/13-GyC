@@ -1,10 +1,8 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { imprimirPDF, nombreArchivo } from '../services/pdf.js';
-import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
-const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
-import { api, mensajeError, modoDemo } from '../data/api.js';
+import { api, mensajeError } from '../data/api.js';
 import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion, diasCierre } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar, libExcel } from '../core/util.js';
@@ -528,19 +526,15 @@ async function importarHistorico(archivo, salida) {
 // ---------- Respaldo ----------
 async function respaldo(el) {
   el.innerHTML = `<div class="grid-2"><div class="tarjeta"><h2>Descargar respaldo</h2>
-      <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, ${modoDemo ? 'en producción ' : ''}se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
+      <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
       <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
       ${esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
-    ${!modoDemo && esSuperadmin() && hayDatosDemo() ? `<div class="tarjeta"><h2>Datos del modo demostración</h2>
-      <p>En este navegador hay datos cargados en el modo demostración (proyectos, actividades, personas…). Puedes pasarlos a la base de datos real.</p>
-      <div class="barra"><button class="btn btn-primario" data-a="traer-demo">⬆ Traer datos del modo demostración</button></div></div>` : ''}
     <div class="tarjeta"><h2>Buenas prácticas</h2><ul><li>Descargue un respaldo antes de importaciones grandes.</li>
       <li>Los archivos de respaldo contienen datos de la empresa: guárdelos en una carpeta privada, nunca en el repositorio público.</li></ul></div></div>`;
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     try {
-      if (a === 'traer-demo') return (await import('./traer-demo.js')).abrirTraerDemo();
       if (a === 'json') {
         const datos = await api.rpc('exportar_respaldo');
         descargar(new Blob([JSON.stringify(datos, null, 1)], { type: 'application/json' }), `${nombreArchivo('Respaldo')}.json`);

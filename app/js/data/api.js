@@ -1,21 +1,9 @@
-// Capa de datos única. Usa el API Vercel/Neon+Clerk si config.js tiene clerkPublishableKey; si no, el modo demostración.
+// Capa de datos única: API de Vercel (api/) con base Neon y sesión de Clerk.
 import { crearAdaptadorApi } from './adapter-api.js';
-import { crearAdaptadorDemo } from './adapter-demo.js';
 
 const cfg = window.GYC_CONFIG || {};
-const forzarDemo = new URLSearchParams(location.search).has('demo') || localStorage.getItem('gyc-modo') === 'demo';
 
-export const modoDemo = forzarDemo || !cfg.clerkPublishableKey;
-
-export const api = modoDemo ? crearAdaptadorDemo() : crearAdaptadorApi(cfg.apiBase || '/api');
-
-export const clerkConfigurado = !!cfg.clerkPublishableKey;
-
-export function usarModo(modo) {
-  if (modo === 'demo') localStorage.setItem('gyc-modo', 'demo');
-  else localStorage.removeItem('gyc-modo');
-  location.href = location.pathname;
-}
+export const api = crearAdaptadorApi(cfg.apiBase || '/api');
 
 export function mensajeError(e) {
   const m = String(e?.message || e || 'Error desconocido');

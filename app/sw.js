@@ -1,6 +1,6 @@
 // Service worker de GyC: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
 // La versión cambia en cada publicación para que los usuarios reciban la última versión.
-const VERSION = 'gyc-v1.0.1';
+const VERSION = 'gyc-v1.0.2';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -19,7 +19,6 @@ const ARCHIVOS = [
   'js/services/indicadores.js',
   'js/services/pdf.js',
   'js/services/resumen.js',
-  'js/services/traer-demo.js',
   'js/views/actividad.js',
   'js/views/ayuda.js',
   'js/views/cartera.js',
@@ -39,15 +38,12 @@ const ARCHIVOS = [
   'js/views/tablero.js',
   'js/views/organigrama.js',
   'js/views/importar-proyectos.js',
-  'js/views/traer-demo.js',
   'js/views/reportes.js',
   'js/views/admin-console.js',
   'js/views/admin-plataforma.js',
   'js/data/adapter-api.js',
-  'js/data/adapter-demo.js',
   'js/data/api.js',
   'js/data/catalogos.js',
-  'js/data/demo-seed.js',
   'js/core/router.js',
   'js/core/store.js',
   'js/core/util.js',

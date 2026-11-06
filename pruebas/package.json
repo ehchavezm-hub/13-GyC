@@ -4,7 +4,7 @@
   "description": "Pruebas automáticas del aplicativo (se ejecutan en GitHub Actions)",
   "type": "module",
   "scripts": {
-    "humo": "node humo.mjs",
+    "recorrido": "node api/recorrido-real.mjs",
     "librerias": "node verificar-librerias.mjs"
   },
   "devDependencies": {
