@@ -11,19 +11,19 @@ const raiz = document.getElementById('raiz');
 
 // Copia sin conexión de los datos (service worker): se borra al salir o si ingresa otra persona en el mismo navegador
 async function borrarDatosLocales() {
-  try { await caches.delete('lpsgt-datos'); } catch { /* sin Cache API */ }
+  try { await caches.delete('gyc-datos'); } catch { /* sin Cache API */ }
 }
 // Datos del perfil que definen qué catálogo se carga (empresa, rol y gerencias de consulta)
 const CLAVES_PERFIL = ['id', 'area_id', 'rol', 'gerencia_ids', 'activo'];
 function perfilLocal(id) {
-  try { const p = JSON.parse(localStorage.getItem('lpsgt-perfil') || 'null'); return p?.id === id ? p : null; } catch { return null; }
+  try { const p = JSON.parse(localStorage.getItem('gyc-perfil') || 'null'); return p?.id === id ? p : null; } catch { return null; }
 }
 function guardarPerfilLocal(u) {
-  try { localStorage.setItem('lpsgt-perfil', JSON.stringify(Object.fromEntries(CLAVES_PERFIL.map(k => [k, u[k]])))); } catch { /* opcional */ }
+  try { localStorage.setItem('gyc-perfil', JSON.stringify(Object.fromEntries(CLAVES_PERFIL.map(k => [k, u[k]])))); } catch { /* opcional */ }
 }
 async function verificarUsuarioLocal(id) {
   let anterior = null;
-  try { anterior = localStorage.getItem('lpsgt-usuario-local'); localStorage.setItem('lpsgt-usuario-local', id); } catch { /* sin almacenamiento */ }
+  try { anterior = localStorage.getItem('gyc-usuario-local'); localStorage.setItem('gyc-usuario-local', id); } catch { /* sin almacenamiento */ }
   if (anterior && anterior !== id) await borrarDatosLocales();
 }
 
@@ -67,10 +67,8 @@ async function arrancar() {
     });
   }
   api.auth.alCambiar((evento) => {
-    if (evento === 'PASSWORD_RECOVERY') mostrarNuevaClave(raiz);
     if (evento === 'SIGNED_OUT') borrarDatosLocales().finally(() => location.reload());
   });
-  if (location.hash.includes('type=recovery')) return mostrarNuevaClave(raiz);
 
   let usuario = null;
   try { usuario = await api.auth.usuario(); } catch (e) { console.warn(e); }
@@ -136,4 +134,24 @@ async function arrancar() {
   }
 }
 
-arrancar();
+async function inicializarClerk() {
+  const key = window.GYC_CONFIG?.clerkPublishableKey;
+  if (!key) return;   // modo demo, no hay Clerk
+  // Espera hasta 10s a que el script Clerk se cargue
+  for (let i = 0; i < 20; i++) {
+    if (typeof window.Clerk !== 'undefined') break;
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (typeof window.Clerk === 'undefined') { console.warn('Clerk SDK no disponible'); return; }
+  try {
+    // Browser CDN: window.Clerk puede ser constructor o instancia ya creada
+    if (typeof window.Clerk === 'function') {
+      window.Clerk = new window.Clerk(key);
+    }
+    if (typeof window.Clerk.load === 'function') {
+      await window.Clerk.load();
+    }
+  } catch (e) { console.error('Clerk.load error:', e); }
+}
+
+inicializarClerk().then(arrancar);
