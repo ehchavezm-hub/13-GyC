@@ -1,6 +1,6 @@
 // Service worker de GyC: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
 // La versión cambia en cada publicación para que los usuarios reciban la última versión.
-const VERSION = 'gyc-v1.2.0';
+const VERSION = 'gyc-v1.2.1';
 const ARCHIVOS = [
   './',
   'index.html',

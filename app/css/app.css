@@ -535,3 +535,7 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 .pagina-arr .arr-tabla .col-proceso, .pagina-arr .arr-tabla .col-area { min-width: 80px; max-width: 110px; }
 .pagina-arr .arr-tabla .col-fecha { width: 80px; }
 .pagina-arr .arr-tabla .col-avance { width: 62px; }
+
+/* Proyecto elegido en el árbol: mismo naranja que la sección activa del menú */
+.proy-item.activo, .proy-item.activo:hover { background: var(--naranja); color: #fff; }
+.proy-item.activo .arbol-ico, .proy-item.activo .cod, .proy-item.activo b, .proy-item.activo span { color: #fff; }
