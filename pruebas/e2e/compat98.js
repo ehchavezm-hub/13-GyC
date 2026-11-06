@@ -7,10 +7,10 @@ const B = 'http://localhost:8099/';
   const errs = [], fallas = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) fallas.push(m); };
-  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')));
-  const editarDb = fn => p.evaluate(f => { const d = JSON.parse(localStorage.getItem('lpsgt-demo-db')); new Function('db', f)(d); localStorage.setItem('lpsgt-demo-db', JSON.stringify(d)); }, fn);
+  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')));
+  const editarDb = fn => p.evaluate(f => { const d = JSON.parse(localStorage.getItem('gyc-demo-db')); new Function('db', f)(d); localStorage.setItem('gyc-demo-db', JSON.stringify(d)); }, fn);
   const entrar = async n => {
-    await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+    await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
     await p.goto(B + '?demo&e=' + n + '#/'); await p.waitForSelector('.usuarios-demo button'); await p.click(`.usuarios-demo button:nth-child(${n})`); await p.waitForTimeout(1200);
   };
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());

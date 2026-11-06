@@ -21,7 +21,7 @@ const BASE = 'http://localhost:8099/';
   console.log('  columnas permisos:', (await p.$$eval('table.simple tr:first-child th', t => t.map(x => x.textContent))).join(' | '));
   await p.screenshot({ path: 'shots3/permisos.png' });
   // Diego (resp_actividad) entra y planifica
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(BASE + '?demo&x=6#/'); await p.waitForSelector('.usuarios-demo button');
   await p.click('.usuarios-demo button:has-text("Diego Paredes")'); await p.waitForTimeout(1200);
   await p.goto(BASE + '?demo#/plan'); await p.waitForTimeout(1300);

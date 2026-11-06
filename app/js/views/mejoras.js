@@ -26,7 +26,7 @@ export async function render(el) {
   const { items, plataforma, todas } = await leer();
   const puedeGestionar = s => plataforma || (puede('ver_solicitud') && s.area_id === store.area.id);
   el.append(html(`<div>
-    <div class="pagina-cab"><h1>Mejoras del aplicativo</h1><span class="pagina-sub">Pida mejoras o reporte errores de LPS-GES${todas ? ' · solicitudes de todas las empresas' : ''}</span>
+    <div class="pagina-cab"><h1>Mejoras del aplicativo</h1><span class="pagina-sub">Pida mejoras o reporte errores de GyC${todas ? ' · solicitudes de todas las empresas' : ''}</span>
       <span class="flex"></span><button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button></div>
     <div class="tarjeta">${items.length ? `<table class="simple"><tr><th>Fecha</th><th>Solicitud</th><th>Pantalla</th><th>Empresa</th><th>Autor</th><th>Prioridad</th><th>Estado</th><th>Respuesta</th><th></th></tr>
       ${items.map(s => `<tr><td>${fmtFecha(s.created_at)}</td><td><b>${esc(s.titulo)}</b><div class="nota">${esc(s.descripcion || '')}</div></td><td>${esc(s.pantalla || '')}</td>

@@ -407,7 +407,7 @@ create table public.reuniones (
   area_id     uuid not null references public.areas(id),
   fecha       date not null default current_date,
   semana      date,
-  asistentes  uuid[] not null default '{}',
+  asistentes  text[] not null default '{}',    -- profiles.id (Clerk, TEXT)
   notas       text,
   created_by  text,                     -- profiles.id (TEXT, sin FK)
   created_at  timestamptz not null default now(),
@@ -1293,8 +1293,8 @@ on conflict (item_codigo) do nothing;
 -- ============================================================
 do $$
 begin
-  assert (select count(*) from public.programa_arranque_items) = 74,
-    'Se esperaban 74 ítems del programa de arranque';
+  assert (select count(*) from public.programa_arranque_items) = 81,
+    'Se esperaban 81 ítems del programa de arranque (74 numerados + subítems)';
   assert (select count(*) from public.areas) >= 1,
     'Se esperaba al menos 1 área (Cosapi)';
   assert (select count(*) from public.portafolios) >= 1,
@@ -1302,6 +1302,6 @@ begin
   assert (select count(*) from public.proyectos) >= 1,
     'Se esperaba al menos 1 proyecto (Hospital Azángaro)';
   raise notice '✓ Migración 000_gyc_neon_completo ejecutada correctamente.';
-  raise notice '  Tablas: %, programa_arranque_items: 74, área: Cosapi',
+  raise notice '  Tablas: %, programa_arranque_items: 81, área: Cosapi',
     (select count(*) from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE');
 end $$;

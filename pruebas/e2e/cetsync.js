@@ -14,7 +14,7 @@ const BASE = 'http://localhost:8099/';
   console.log('  columnas:', cols.join(' | '));
   chk(cols.join('|') === 'Proyecto|Código (CET)|Servicio|Orden|Activo', 'orden Proyecto, Código (CET), Servicio');
   // asignar D-101 al primer servicio
-  await p.evaluate(() => { const t = Tabulator.findTable('.grilla-tabla')[0]; const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+  await p.evaluate(() => { const t = Tabulator.findTable('.grilla-tabla')[0]; const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     t.getRows()[0].getCell('_proyecto').setValue(db.proyectos.find(x => x.codigo === 'D-101').id); });
   await p.waitForTimeout(1200);
   // segunda pestaña: crear proyecto y renombrar D-101

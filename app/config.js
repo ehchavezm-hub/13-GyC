@@ -7,11 +7,18 @@ window.GYC_CONFIG = {
   apiBase: '/api',
 };
 
-// Clerk v5 CDN requiere data-clerk-publishable-key en el <script> antes de ejecutarse.
-// config.js corre sincrónicamente antes de que el script async de Clerk descargue y se ejecute.
+// Carga Clerk (v5) con la clave de arriba: única fuente de la clave publicable (index.html no la repite).
+// Clerk v5 lee data-clerk-publishable-key del <script> al ejecutarse, por eso el atributo va antes del src.
 (function () {
   var key = window.GYC_CONFIG.clerkPublishableKey;
-  if (!key) return;
-  var el = document.getElementById('clerk-js');
-  if (el) el.setAttribute('data-clerk-publishable-key', key);
+  var demo = /[?&]demo(=|&|$)/.test(location.search);
+  try { demo = demo || localStorage.getItem('gyc-modo') === 'demo'; } catch (e) { /* sin almacenamiento */ }
+  if (!key || demo) return;
+  var s = document.createElement('script');
+  s.id = 'clerk-js';
+  s.async = true;
+  s.crossOrigin = 'anonymous';
+  s.setAttribute('data-clerk-publishable-key', key);
+  s.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
+  document.head.appendChild(s);
 })();

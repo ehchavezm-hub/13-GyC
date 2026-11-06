@@ -26,7 +26,7 @@ const usuarios = await pagina.$$eval('.usuarios-demo button', bs => bs.map(b => 
 let pantallas = 0;
 
 for (let i = 0; i < usuarios.length; i++) {
-  await pagina.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await pagina.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await pagina.goto(`${BASE}?demo&u=${i}#/`);
   await pagina.waitForSelector('.usuarios-demo button');
   await pagina.click(`.usuarios-demo button:nth-child(${i + 1})`);

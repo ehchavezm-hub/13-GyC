@@ -8,9 +8,9 @@ const BASE = 'http://localhost:8099/';
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
   // pasar dos proyectos a En pausa y tres a Cerrado como en la captura
-  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     for (const x of db.proyectos) { if (['INT-01', 'INT-02'].includes(x.codigo)) x.estado = 'en_pausa'; if (['D-102', 'D-103', 'D-104'].includes(x.codigo)) x.estado = 'cerrado'; }
-    localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); });
+    localStorage.setItem('gyc-demo-db', JSON.stringify(db)); });
   await p.goto(BASE + '?demo&y=1#/proyectos'); await p.waitForTimeout(2000);
   // medir altos durante 3 segundos: si cambian, la grilla "baila"
   const altos = [];

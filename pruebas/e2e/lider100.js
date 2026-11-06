@@ -6,7 +6,7 @@ const B = 'http://localhost:8099/';
   const errs = [], fallas = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) fallas.push(m); };
-  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')));
+  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')));
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:has-text("Bruno Salas")'); await p.waitForTimeout(1200);
   // 1. Agregar proyecto desde el ＋ del menú de proyectos: queda activo, no "propuesto"
@@ -48,7 +48,7 @@ const B = 'http://localhost:8099/';
   await p.locator('.tabulator-edit-list-item', { hasText: 'L-777' }).first().click(); await p.waitForTimeout(800);
   chk((await fila.locator('[tabulator-field="_cet"]').innerText()).trim() === 'CET-L777', 'al elegir el proyecto se completa su CET');
   // 4. Un Responsable de actividad no tiene estas opciones
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(B + '?demo&x=2#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:has-text("Diego Paredes")'); await p.waitForTimeout(1200);
   chk(await p.locator('[data-a="nuevo-proy"]').count() === 0, 'Responsable de actividad: sin ＋ de proyectos');
   await p.click('.menu-proy [data-p="todos"]'); await p.waitForTimeout(300);

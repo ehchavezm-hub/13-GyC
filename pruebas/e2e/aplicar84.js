@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
   const B = 'http://localhost:8099/';
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(4)'); await p.waitForTimeout(800);
-  const n = () => p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).actividades.length);
+  const n = () => p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).actividades.length);
   await p.goto(B + '?demo&y=1#/lookahead'); await p.waitForTimeout(1800);
   const a0 = await n();
   await p.click('button:has-text("Aplicar plantilla de servicio")'); await p.waitForTimeout(800);

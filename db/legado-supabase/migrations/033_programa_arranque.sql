@@ -211,8 +211,8 @@ ON CONFLICT (item_codigo) DO NOTHING;
 
 DO $$
 BEGIN
-  ASSERT (SELECT COUNT(*) FROM programa_arranque_items) = 74,
-    'Se esperaban 74 ítems maestros';
+  ASSERT (SELECT COUNT(*) FROM programa_arranque_items) = 81,
+    'Se esperaban 81 ítems maestros (74 numerados + subítems)';
   RAISE NOTICE 'Migración 033 completada: % ítems maestros',
     (SELECT COUNT(*) FROM programa_arranque_items);
 END $$;

@@ -1,4 +1,6 @@
-# Verifica las migraciones y reglas de seguridad de la base de datos, y la sintaxis del aplicativo.
+# Verifica las migraciones de Neon, la compatibilidad del API con la base, la sintaxis del aplicativo
+# y que todas las pantallas funcionen (modo demostración y modo real contra un PostgreSQL local).
+# Nunca se conecta a la base de producción: las migraciones de Neon las ejecuta el dueño en el SQL Editor.
 name: Pruebas
 
 on:
@@ -10,15 +12,21 @@ permissions:
   contents: read
 
 jobs:
-  base-de-datos:
+  base-de-datos-y-api:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Instalar PostgreSQL 16
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-16 >/dev/null
-      - name: Migraciones y reglas
-        run: sudo PGBIN=/usr/lib/postgresql/16/bin bash supabase/tests/run.sh
+      - name: Dependencias
+        run: npm ci
+      - name: Migraciones 000 + 035 y pruebas del API
+        run: sudo PGBIN=/usr/lib/postgresql/16/bin PATH="$PATH" bash db/tests/run.sh
+
   aplicativo:
     runs-on: ubuntu-latest
     steps:
@@ -27,4 +35,9 @@ jobs:
         with:
           node-version: 22
       - name: Sintaxis de los módulos
-        run: for f in $(find app/js -name '*.js'); do node --check "$f" || exit 1; done
+        run: for f in $(find app/js api -name '*.js') app/config.js app/sw.js; do node --check "$f" || exit 1; done
+      - name: Prueba de humo (modo demostración)
+        run: |
+          cd pruebas && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+          (cd ../app && python3 -m http.server 8099 >/dev/null 2>&1 &)
+          sleep 1 && node humo.mjs http://localhost:8099/

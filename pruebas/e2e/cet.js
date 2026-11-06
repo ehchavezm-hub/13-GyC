@@ -15,12 +15,12 @@ const BASE = 'http://localhost:8099/';
   // Asignar proyecto D-101 al CET-002 por API de la grilla (como si se eligiera en la lista)
   const ok = await p.evaluate(async () => {
     const t = Tabulator.findTable('.grilla-tabla')[0];
-    const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+    const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     const proy = db.proyectos.find(x => x.codigo === 'D-101');
     const row = t.getRows().find(r => r.getData().codigo === 'CET-002');
     row.getCell('_proyecto').setValue(proy.id);
     await new Promise(r => setTimeout(r, 1500));
-    const v = JSON.parse(localStorage.getItem('lpsgt-demo-db')).lista_valores.find(x => x.codigo === 'CET-002');
+    const v = JSON.parse(localStorage.getItem('gyc-demo-db')).lista_valores.find(x => x.codigo === 'CET-002');
     return v.extra?.proyecto_id === proy.id;
   });
   chk(ok, 'proyecto guardado en el CET');
@@ -33,7 +33,7 @@ const BASE = 'http://localhost:8099/';
   await p.goto(BASE + '?demo#/plan'); await p.waitForTimeout(1300);
   const cet = await p.evaluate(async () => {
     const m = await import('./js/services/columnas.js');
-    const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+    const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     const proy = db.proyectos.find(x => x.codigo === 'D-101');
     const d = m.derivarActividad({}, { proyecto_id: proy.id });
     return db.lista_valores.find(v => v.id === d.cet_id)?.codigo;

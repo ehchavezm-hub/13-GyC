@@ -25,7 +25,7 @@ const BASE = 'http://localhost:8099/';
   await p.click('[data-pestanas] [data-e="cerrado"]'); await p.waitForTimeout(400);
   chk((await visibles()).includes('D-101'), 'aparece en Cerrados');
   await p.waitForTimeout(1200);
-  chk((await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).proyectos.find(x => x.codigo === 'D-101').estado)) === 'cerrado', 'estado guardado');
+  chk((await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).proyectos.find(x => x.codigo === 'D-101').estado)) === 'cerrado', 'estado guardado');
   // nueva fila en pestaña En pausa
   await p.click('[data-pestanas] [data-e="en_pausa"]'); await p.waitForTimeout(300);
   // borrar con doble confirmación: crear proyecto sin historial
@@ -40,7 +40,7 @@ const BASE = 'http://localhost:8099/';
   const t2 = await p.textContent('.modal h2'); await p.click('.modal-pie button:has-text("Eliminar definitivamente")'); await p.waitForTimeout(1500);
   console.log('  confirmaciones:', t1, '→', t2);
   chk(t1.includes('1 de 2') && t2.includes('2 de 2'), 'doble confirmación');
-  chk(!(await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).proyectos.some(x => x.codigo === 'DEL-1'))), 'proyecto eliminado');
+  chk(!(await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).proyectos.some(x => x.codigo === 'DEL-1'))), 'proyecto eliminado');
   // con historial: 🗑 ofrece desactivar
   await p.click('.tabulator-row:has-text("D-102") .mini-peligro'); await p.waitForTimeout(800);
   chk((await p.textContent('.modal h2')).includes('No se puede eliminar'), 'con historial: no elimina y ofrece desactivar');

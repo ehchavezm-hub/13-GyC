@@ -1,5 +1,5 @@
 {
-  "name": "lpsgt-pruebas",
+  "name": "gyc-pruebas",
   "private": true,
   "description": "Pruebas automáticas del aplicativo (se ejecutan en GitHub Actions)",
   "type": "module",

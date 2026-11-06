@@ -9,7 +9,7 @@ import { imprimirPDF } from '../services/pdf.js';
 function guia() {
   const c = param('cierre') || {}, r = param('reunion') || {};
   return [
-    ['¿Qué es LPS-GES?', `<p>Es la aplicación del <b>Last Planner System®</b> a la gestión de la Gerencia Técnica. Cada líder planifica su trabajo semanal,
+    ['¿Qué es GyC?', `<p>Es la aplicación del <b>Last Planner System®</b> a la gestión de la Gerencia Técnica. Cada líder planifica su trabajo semanal,
       identifica lo que le impide avanzar (restricciones), se compromete con el equipo y, al cierre, registra qué cumplió y por qué no cumplió lo demás.
       El indicador principal es el <b>PAC</b> (Porcentaje de Actividades Cumplidas) = completadas ÷ (completadas + no completadas) de los compromisos programados.</p>`],
     ['Flujo semanal', `<ol>
@@ -60,7 +60,7 @@ export async function render(el) {
     <button class="btn btn-sm" data-a="tour">▶ Recorrido guiado</button><button class="btn btn-sm" data-a="pdf">🖨 Guía rápida (PDF)</button></div>
     <div class="tarjeta">${guia().map(([t, c]) => `<div class="ayuda-seccion"><h2>${esc(t)}</h2>${c}</div>`).join('')}</div></div>`));
   el.querySelector('[data-a="tour"]').onclick = () => iniciarRecorrido(true);
-  el.querySelector('[data-a="pdf"]').onclick = () => imprimirPDF('Guía rápida LPS-GES', guia().map(([t, c]) => `<h2>${esc(t)}</h2>${c}`).join(''), { proyectoTexto: 'Todos los proyectos' });
+  el.querySelector('[data-a="pdf"]').onclick = () => imprimirPDF('Guía rápida GyC', guia().map(([t, c]) => `<h2>${esc(t)}</h2>${c}`).join(''), { proyectoTexto: 'Todos los proyectos' });
 }
 
 const PASOS = [

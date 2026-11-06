@@ -97,7 +97,7 @@ async function usuarios(el) {
     if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
-      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GES. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
+      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar GyC. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
         <p><input class="inp" style="width:100%" readonly value="${esc(url)}"></p>
         <p class="nota">También puede crear la cuenta usted mismo con "＋ Nuevo usuario" y entregarle una contraseña temporal.</p>`,
         botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }] });
@@ -142,7 +142,7 @@ async function eliminarUsuario(p) {
 }
 
 function mostrarCredenciales(titulo, email, clave) {
-  const texto = `LPS-GES\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
+  const texto = `GyC\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
   modal({
     titulo, ancho: 520,
     cuerpo: `<p>Entregue estos datos a la persona por un medio privado. Al ingresar se le pedirá definir su propia contraseña.</p>
@@ -406,7 +406,7 @@ async function parametros(el) {
         look_ahead: { dias: (d.la_dias || []).map(Number).sort((a, b) => a - b), semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
         horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dias: cierreDias, dia: cierreDias.at(-1), hora: d.cierre_hora || '17:00' },
         reunion: { dias: (d.reunion_dias || []).map(Number).sort((a, b) => a - b), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
-        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS-GES V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
+        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'GyC V1.00.00', firma_pdf: d.firma_pdf || 'By EHCM',
         reunion_minutos: Object.fromEntries(Object.keys(p.reunion_minutos || PARAMETROS_INICIALES.reunion_minutos).map(k => [k, d['rm_' + k] ?? 10])),
         reconocimientos: { mejor_pac: d.rec_mejor, mayor_mejora: d.rec_mejora },
       };

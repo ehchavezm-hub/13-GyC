@@ -78,7 +78,7 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
 export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto } = {}) {
   document.querySelector('.vista-pdf')?.remove();
   let pref = { papel: 'A4', unaHoja: false };
-  try { pref = { ...pref, ...JSON.parse(localStorage.getItem('lpsgt-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
+  try { pref = { ...pref, ...JSON.parse(localStorage.getItem('gyc-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
   if (!PAPELES[pref.papel]) pref.papel = 'A4';
   const estado = { orientacion };
   const archivo = nombreArchivo(modulo);
@@ -100,7 +100,7 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   const marco = capa.querySelector('iframe');
   const pintar = () => {
     const papel = capa.querySelector('[data-o="papel"]').value, unaHoja = capa.querySelector('[data-o="unaHoja"]').checked;
-    try { localStorage.setItem('lpsgt-reportes', JSON.stringify({ ...pref, papel, unaHoja })); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem('gyc-reportes', JSON.stringify({ ...pref, papel, unaHoja })); } catch { /* sin almacenamiento */ }
     capa.querySelectorAll('[data-ori]').forEach(b => b.classList.toggle('activo', b.dataset.ori === estado.orientacion));
     marco.srcdoc = documentoReporte(modulo, contenidoHTML, { papel, orientacion: estado.orientacion, unaHoja, proyectoTexto, archivo });
   };
@@ -207,7 +207,7 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
   const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
   const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
   const proy = proyectoTexto || nombreProyectoActual();
-  const version = param('version_app') || 'LPS-GES V1.00.01';
+  const version = param('version_app') || 'GyC V1.00.00';
   const firma = param('firma_pdf') || 'By EHCM';
   const [a, b] = PAPELES[papel] || PAPELES.A4;
   const [ancho, alto] = orientacion === 'landscape' ? [b, a] : [a, b];

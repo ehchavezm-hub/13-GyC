@@ -6,7 +6,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const B = 'http://localhost:8099/';
-  const entrar = async n => { await p.goto(B + '?demo'); await p.evaluate(() => { const db = localStorage.getItem('lpsgt-demo-db'); const keep = Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('lpsgt-demo')).map(k => [k, localStorage.getItem(k)])); localStorage.clear(); for (const [k, v] of Object.entries(keep)) localStorage.setItem(k, v); localStorage.removeItem('lpsgt-demo-usuario'); });
+  const entrar = async n => { await p.goto(B + '?demo'); await p.evaluate(() => { const db = localStorage.getItem('gyc-demo-db'); const keep = Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('gyc-demo')).map(k => [k, localStorage.getItem(k)])); localStorage.clear(); for (const [k, v] of Object.entries(keep)) localStorage.setItem(k, v); localStorage.removeItem('gyc-demo-usuario'); });
     await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); const u = p.locator('.usuarios-demo button').nth(n); const nom = (await u.innerText()).split('\n')[0]; await u.click(); await p.waitForTimeout(1200); return nom; };
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   console.log('propietario:', await entrar(0));

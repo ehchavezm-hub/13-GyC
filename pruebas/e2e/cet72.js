@@ -8,10 +8,10 @@ const { chromium } = require('playwright');
   await p.goto(B + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
   // Códigos CET en dos servicios
-  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('lpsgt-demo-db'));
+  await p.evaluate(() => { const db = JSON.parse(localStorage.getItem('gyc-demo-db'));
     const l = db.listas.find(x => x.clave === 'servicios'); const vs = db.lista_valores.filter(v => v.lista_id === l.id);
     vs[0].codigo = 'CET-101'; vs[1].codigo = 'CET-202'; window.__s = [vs[0].valor, vs[1].valor];
-    localStorage.setItem('lpsgt-demo-db', JSON.stringify(db)); localStorage.setItem('svc', JSON.stringify(window.__s)); });
+    localStorage.setItem('gyc-demo-db', JSON.stringify(db)); localStorage.setItem('svc', JSON.stringify(window.__s)); });
   const [s0, s1] = await p.evaluate(() => JSON.parse(localStorage.getItem('svc')));
   for (const ruta of ['lookahead']) {
     await p.goto(B + '?demo&y=' + ruta + '#/' + ruta); await p.waitForTimeout(1800);

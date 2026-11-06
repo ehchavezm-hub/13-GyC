@@ -22,7 +22,7 @@ const BASE = 'http://localhost:8099/';
     else chk((await p.$eval('[data-l]', s => s.value)) === esperado, 'abre la lista ' + esperado + ' (' + url.split('#')[1] + ')');
   }
   // un líder no ve el acceso (no gestiona listas) en Gerencia, pero sí en Proyecto (propone)
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(BASE + '?demo&x=4#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:has-text("Bruno Salas")'); await p.waitForTimeout(1000);
   await p.goto(BASE + '?demo#/plan'); await p.waitForTimeout(1300);
   await p.click(`.tabulator-col .tabulator-col-title:text-is("Gerencia")`, { button: 'right' }); await p.waitForTimeout(300);

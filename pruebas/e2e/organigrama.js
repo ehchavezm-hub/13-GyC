@@ -6,7 +6,7 @@ const BASE = 'http://localhost:8099/';
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
-  const nodos = () => p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).organigrama_nodos || []);
+  const nodos = () => p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).organigrama_nodos || []);
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
   for (const r of ['/plan', '/lookahead']) {
@@ -18,7 +18,7 @@ const BASE = 'http://localhost:8099/';
   await p.click('[data-o="generar"]'); await p.waitForTimeout(300);
   await p.click('.modal-pie button:has-text("Generar")'); await p.waitForTimeout(2500);
   const n = await nodos();
-  const personas = await p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')).profiles.filter(x => x.activo && !['consulta', 'pendiente'].includes(x.rol)).length);
+  const personas = await p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')).profiles.filter(x => x.activo && !['consulta', 'pendiente'].includes(x.rol)).length);
   chk(n.filter(x => x.tipo === 'persona').length === personas && n.filter(x => x.tipo === 'unidad').length === 1, `generado: 1 unidad y ${personas} personas`);
   chk((await p.$$('.org-nodo')).length === n.length && (await p.$$('.org-lineas path')).length === n.length - 1, 'tarjetas y líneas dibujadas');
   // agregar unidad BIM debajo de la raíz

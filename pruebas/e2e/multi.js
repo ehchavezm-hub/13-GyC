@@ -35,12 +35,12 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   console.log('   super admin Andina:', (await fila('Constructora Andina').locator('td').nth(3).innerText()).replace(/\s+/g, ' '));
   console.log('   super admin GT (sin cambios):', (await fila('Gerencia Técnica').locator('td').nth(3).innerText()).replace(/\s+/g, ' ').slice(0, 60));
   // 4) entra «multi» y cambia de empresa
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(B + '?demo&x=2#/'); await p.waitForSelector('.usuarios-demo button');
   await p.locator('.usuarios-demo button', { hasText: 'Multi Empresa' }).click(); await p.waitForTimeout(1200);
   if (await p.locator('text=Defina su nueva contraseña').count()) { const ins = p.locator('input[type=password]'); await ins.nth(0).fill('Nueva-Clave-99'); await ins.nth(1).fill('Nueva-Clave-99'); await p.click('button:has-text("Guardar")'); await p.waitForTimeout(1500); }
   const empresaYrol = () => p.evaluate(async () => { const s = await import('./js/core/store.js'); return `${s.store.area?.nombre} · ${s.store.usuario?.rol}`; });
-  console.log('4) entra en:', await empresaYrol(), errs, await p.evaluate(() => document.body.innerText.slice(0, 300)), await p.evaluate(() => localStorage.getItem('lpsgt-demo-usuario')));
+  console.log('4) entra en:', await empresaYrol(), errs, await p.evaluate(() => document.body.innerText.slice(0, 300)), await p.evaluate(() => localStorage.getItem('gyc-demo-usuario')));
   await p.click('[data-a="usuario"]'); await p.waitForTimeout(300);
   console.log('   menú:', (await p.locator('.menu-usuario button').allInnerTexts()).join(' | '));
   await p.click('.menu-usuario [data-a="empresa"]'); await p.waitForTimeout(500);
@@ -49,7 +49,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   await Promise.all([p.waitForNavigation().catch(() => {}), p.click('.modal-pie .btn-primario')]); await p.waitForTimeout(2000);
   console.log('   ahora en:', await empresaYrol(), '· ve Administración:', await p.locator('.nav-admin a').count());
   // 5) el propietario ve a «multi» en GT aunque hoy trabaje en Andina
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(B + '?demo&x=3#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1200);
   await p.goto(B + '?demo#/config/usuarios'); await p.waitForTimeout(1500);
   console.log('5) GT › Usuarios:', (await p.locator('tr:has-text("Multi Empresa")').innerText().catch(() => 'NO APARECE')).replace(/\s+/g, ' ').slice(0, 140));

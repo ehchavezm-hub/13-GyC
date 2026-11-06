@@ -6,7 +6,7 @@ const BASE = 'http://localhost:8099/';
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
-  const db = () => p.evaluate(() => { const d = JSON.parse(localStorage.getItem('lpsgt-demo-db')); const v = id => d.lista_valores.find(x => x.id === id)?.valor || null;
+  const db = () => p.evaluate(() => { const d = JSON.parse(localStorage.getItem('gyc-demo-db')); const v = id => d.lista_valores.find(x => x.id === id)?.valor || null;
     return d.proyectos.filter(x => ['X-001', 'X-002', 'D-101'].includes(x.codigo)).map(x => ({ c: x.codigo, n: x.nombre_corto, g: v(x.gerencia_id), f: v(x.fase_id), pa: v(x.pais_id), e: x.estado, i: x.fecha_inicio, fin: x.fecha_fin })); });
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);

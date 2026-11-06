@@ -19,7 +19,7 @@ function depurar(evento) {
   for (const ex of evento.exception?.values || []) ex.value = limpiar(ex.value);
   for (const b of evento.breadcrumbs || []) {
     b.message = limpiar(b.message);
-    if (b.data?.url) b.data.url = b.data.url.split('?')[0];   // los filtros de Supabase van en la URL
+    if (b.data?.url) b.data.url = b.data.url.split('?')[0];   // por si algún filtro viaja en la URL
   }
   return evento;
 }

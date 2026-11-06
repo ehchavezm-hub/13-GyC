@@ -1,4 +1,4 @@
-// Consola de Administración — LPS-GES
+// Consola de Administración — GyC
 // Barra superior: ⚙ Administración › [Plataforma] › EMPRESA (selector) › PROYECTO (selector).
 // Menú PLATAFORMA (propietarios de la plataforma, admin-plataforma.js) y menú EMPRESA (la empresa en la que se trabaja).
 // Spec: docs/LPS-GT_Alcance_v0.7.docx sección 6.1-6.2

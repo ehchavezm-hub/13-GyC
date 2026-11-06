@@ -1,9 +1,9 @@
-// Traer a Supabase los datos cargados en el modo demostración (guardados solo en este navegador).
+// Traer a la base real (API Vercel/Neon) los datos cargados en el modo demostración (guardados solo en este navegador).
 // Se ejecuta desde Configuración → Respaldo. Conserva los identificadores originales, de modo que se puede
 // repetir sin duplicar: lo ya traído se omite.
 // planificar() es una función pura (se prueba en pruebas/traer-demo.test.mjs); ejecutar() hace las escrituras.
 
-export const CLAVE_DEMO = 'lpsgt-demo-db';
+export const CLAVE_DEMO = 'gyc-demo-db';
 
 // Columnas que acepta cada tabla (las calculadas, como hh_total, quedan fuera)
 export const COLUMNAS = {
@@ -188,7 +188,7 @@ export function planificar(db, reales, eleccion, mapaPersonas) {
 }
 
 /**
- * Ejecuta el plan con el adaptador de Supabase. crearCuenta(persona) → { id, clave } para las personas nuevas.
+ * Ejecuta el plan con el adaptador del API. crearCuenta(persona) → { id, clave } para las personas nuevas.
  * progreso(texto) informa el avance. Devuelve el informe.
  */
 export async function ejecutar({ api, db, eleccion, reales, crearCuenta, actualizarPerfil, progreso = () => {} }) {

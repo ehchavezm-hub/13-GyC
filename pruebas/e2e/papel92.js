@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
   const B = 'http://localhost:8099/';
   await p.goto(B + '?demo'); await p.evaluate(() => { localStorage.clear(); });
   await p.goto(B + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(800);
-  await p.evaluate(() => localStorage.setItem('lpsgt-reportes', JSON.stringify({ papel: 'Carta' })));
+  await p.evaluate(() => localStorage.setItem('gyc-reportes', JSON.stringify({ papel: 'Carta' })));
   await p.goto(B + '?demo&y=1#/reportes'); await p.waitForTimeout(2000);
   console.log('opciones:', (await p.$$eval('[data-o="papel"] option', o => o.map(x => x.value))).join(', '), '· elegido:', await p.inputValue('[data-o="papel"]'));
   for (const papel of ['A6', 'A0']) {

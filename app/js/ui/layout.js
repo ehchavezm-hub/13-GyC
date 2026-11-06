@@ -103,9 +103,9 @@ export function montarLayout(raiz, { alSalir }) {
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto(null, { sub: true })));
 
   try {
-    const previa = sessionStorage.getItem('lpsgt-recarga-forzada');
+    const previa = sessionStorage.getItem('gyc-recarga-forzada');
     if (previa !== null) {
-      sessionStorage.removeItem('lpsgt-recarga-forzada');
+      sessionStorage.removeItem('gyc-recarga-forzada');
       const actual = versionApp();
       ok(previa === actual ? `Caché vaciada. Ya tenía la última versión publicada (${actual}).` : `Aplicativo actualizado a la versión ${actual}.`);
     }
@@ -126,13 +126,13 @@ function debounceCatalogo() {
 }
 
 const preferencias = (() => {
-  try { return { ancho: 260, contraido: false, letraGrande: false, ...JSON.parse(localStorage.getItem('lpsgt-vista') || '{}') }; }
+  try { return { ancho: 260, contraido: false, letraGrande: false, ...JSON.parse(localStorage.getItem('gyc-vista') || '{}') }; }
   catch { return { ancho: 260, contraido: false, letraGrande: false }; }
 })();
 
 function aplicarPreferencias(cambios) {
   Object.assign(preferencias, cambios);
-  try { localStorage.setItem('lpsgt-vista', JSON.stringify(preferencias)); } catch { /* sin almacenamiento */ }
+  try { localStorage.setItem('gyc-vista', JSON.stringify(preferencias)); } catch { /* sin almacenamiento */ }
   const app = document.getElementById('app');
   if (app) app.style.setProperty('--lateral', preferencias.contraido ? '60px' : `${preferencias.ancho}px`);
   document.body.classList.toggle('lateral-contraido', !!preferencias.contraido);
@@ -180,10 +180,10 @@ function pintarNav() {
 }
 
 // Ramas contraídas del árbol de proyectos (por computadora)
-const contraidosProy = (() => { try { return new Set(JSON.parse(localStorage.getItem('lpsgt-arbol-proy') || '[]')); } catch { return new Set(); } })();
+const contraidosProy = (() => { try { return new Set(JSON.parse(localStorage.getItem('gyc-arbol-proy') || '[]')); } catch { return new Set(); } })();
 function alternarRama(clave) {
   contraidosProy.has(clave) ? contraidosProy.delete(clave) : contraidosProy.add(clave);
-  try { localStorage.setItem('lpsgt-arbol-proy', JSON.stringify([...contraidosProy])); } catch { /* opcional */ }
+  try { localStorage.setItem('gyc-arbol-proy', JSON.stringify([...contraidosProy])); } catch { /* opcional */ }
   pintarProyectos();
 }
 
@@ -289,7 +289,7 @@ export async function recargaForzada() {
     }
     await Promise.all([...archivos].map(u => fetch(u, { cache: 'reload' }).catch(() => null)));
   } catch { /* si algo falla, igual se recarga */ }
-  try { sessionStorage.setItem('lpsgt-recarga-forzada', versionApp()); } catch { /* opcional */ }
+  try { sessionStorage.setItem('gyc-recarga-forzada', versionApp()); } catch { /* opcional */ }
   location.reload();
 }
 
@@ -336,7 +336,7 @@ async function cambiarDeEmpresa() {
     alGuardar: async d => {
       if (d.area_id === r.actual) return;
       await api.adminUsuarios('cambiar_empresa', { area_id: d.area_id });
-      try { localStorage.removeItem('lpsgt-proyecto'); localStorage.removeItem('lpsgt-nivel'); } catch { /* opcional */ }
+      try { localStorage.removeItem('gyc-proyecto'); localStorage.removeItem('gyc-nivel'); } catch { /* opcional */ }
       location.hash = '#/';
       location.reload();
     },

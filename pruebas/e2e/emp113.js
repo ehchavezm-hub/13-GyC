@@ -7,7 +7,7 @@ const B = 'http://localhost:8099/';
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) fallas.push(m); };
   const entrar = async texto => {
-    await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+    await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
     await p.goto(B + '?demo&e=' + Math.random() + '#/'); await p.waitForSelector('.usuarios-demo button');
     await p.click(`.usuarios-demo button:has-text("${texto}")`); await p.waitForTimeout(1300);
   };

@@ -8,14 +8,13 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const VENDOR = join(RAIZ, 'app/vendor');
-const TMP = mkdtempSync(join(tmpdir(), 'lpsgt-libs-'));
+const TMP = mkdtempSync(join(tmpdir(), 'gyc-libs-'));
 const sh = (c, cwd = TMP) => execSync(c, { cwd, stdio: ['ignore', 'pipe', 'inherit'] }).toString();
 
 // Librería → paquete npm y archivo original
 const NPM = {
   'tabulator.min.js': ['tabulator-tables', '6.6.1', 'dist/js/tabulator.min.js'],
   'tabulator.min.css': ['tabulator-tables', '6.6.1', 'dist/css/tabulator.min.css'],
-  'supabase.min.js': ['@supabase/supabase-js', '2.117.3', 'dist/umd/supabase.js'],
   'chart.umd.min.js': ['chart.js', '4.5.1', 'dist/chart.umd.min.js'],
 };
 const SHEETJS = ['0.20.3', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'];

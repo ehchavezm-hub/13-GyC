@@ -14,7 +14,7 @@ const log = (...a) => console.log(...a);
   await p.goto(BASE + '?demo'); await p.waitForTimeout(800);
   await p.evaluate(() => { localStorage.clear(); });
   const entrar = async u => {
-    await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+    await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
     await p.goto(BASE + '?demo&u=' + u + Date.now() + '#/');
     await p.waitForSelector('.usuarios-demo button');
     const nombre = await p.textContent(`.usuarios-demo button:nth-child(${u})`);
@@ -85,7 +85,7 @@ const log = (...a) => console.log(...a);
 
   // ---------- 4. Deshacer ----------
   // ---------- 5. Cerrar semana con validación ----------
-  const yo = await p.evaluate(() => localStorage.getItem('lpsgt-demo-usuario'));
+  const yo = await p.evaluate(() => localStorage.getItem('gyc-demo-usuario'));
   await p.click('[data-a="cerrar"]').catch(() => errs.push('sin botón cerrar'));
   await p.waitForTimeout(600);
   const titulo = await p.textContent('.modal h2').catch(() => '');
@@ -145,7 +145,7 @@ const log = (...a) => console.log(...a);
   check(!!aprobar, 'admin ve botón Aprobar para propuestos');
   if (aprobar) { await aprobar.click(); await p.waitForTimeout(600); if (await p.$('.modal')) { const bb = await p.$$eval('.modal-pie button', b => b.map(x => x.textContent)); await btnModal(bb[bb.length - 1]); } }
   await p.waitForTimeout(800);
-  const est = await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /lpsgt-demo-db/.test(k)) || 'null'))?.proyectos?.find(x => x.codigo === 'E2E-1')?.estado);
+  const est = await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /gyc-demo-db/.test(k)) || 'null'))?.proyectos?.find(x => x.codigo === 'E2E-1')?.estado);
   log('  estado proyecto E2E-1:', est);
   await ir('/cartera');
   await p.screenshot({ path: OUT + '/5_admin_cartera.png' });

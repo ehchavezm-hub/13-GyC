@@ -136,7 +136,7 @@ async function arrancar() {
 
 async function inicializarClerk() {
   const key = window.GYC_CONFIG?.clerkPublishableKey;
-  if (!key) return;   // modo demo, no hay Clerk
+  if (!key || modoDemo) return;   // modo demostración: Clerk no se carga (config.js)
   // Espera hasta 10s a que el script Clerk se cargue
   for (let i = 0; i < 20; i++) {
     if (typeof window.Clerk !== 'undefined') break;
@@ -149,7 +149,7 @@ async function inicializarClerk() {
       // Fallback: CDN sin auto-init, construir manualmente
       window.Clerk = new window.Clerk(key);
       await window.Clerk.load();
-    } else if (typeof window.Clerk.load === 'function') {
+    } else if (typeof window.Clerk.load === 'function' && !window.Clerk.loaded) {
       await window.Clerk.load();
     }
     // Si ya está completamente cargado (auto-init del CDN), no hacer nada

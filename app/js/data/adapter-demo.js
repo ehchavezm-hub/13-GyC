@@ -1,12 +1,12 @@
-// Adaptador de demostración: misma interfaz que Supabase, datos ficticios en localStorage.
+// Adaptador de demostración: misma interfaz que el API (adapter-api.js), datos ficticios en localStorage.
 // Replica las reglas de negocio de la base de datos (cierre de semana, bloqueo, valores protegidos,
 // notificaciones) para que el aplicativo se comporte igual. No aplica seguridad real.
 import { LISTAS_INICIALES } from './catalogos.js';
 import { uuid, lunes, hoy } from '../core/util.js';
 import { crearDatosDemo } from './demo-seed.js';
 
-const CLAVE = 'lpsgt-demo-db';
-const CLAVE_SESION = 'lpsgt-demo-usuario';
+const CLAVE = 'gyc-demo-db';
+const CLAVE_SESION = 'gyc-demo-usuario';
 
 const DEFECTOS = {
   actividades: { resp2: null, hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_real: null,
@@ -74,7 +74,7 @@ const HH = ['hh_lu', 'hh_ma', 'hh_mi', 'hh_ju', 'hh_vi', 'hh_sa', 'hh_do'];
 export function crearAdaptadorDemo() {
   let db = cargar();
   const oyentes = new Set();
-  const canal = 'BroadcastChannel' in window ? new BroadcastChannel('lpsgt-demo') : null;
+  const canal = 'BroadcastChannel' in window ? new BroadcastChannel('gyc-demo') : null;
 
   function guardar() { localStorage.setItem(CLAVE, JSON.stringify(db)); }
   function tabla(t) { return (db[t] ||= []); }
@@ -658,8 +658,8 @@ export function crearAdaptadorDemo() {
   };
   // Semana de referencia del seed (para reconstruir datos si cambia la semana)
   api.semanaDemo = () => db._semana || lunes();
-  // Medición de rendimiento (solo pruebas): simula la demora de red de Supabase y cuenta las llamadas
-  const latencia = Number(localStorage.getItem('lpsgt-latencia')) || 0;
+  // Medición de rendimiento (solo pruebas): simula la demora de red del API y cuenta las llamadas
+  const latencia = Number(localStorage.getItem('gyc-latencia')) || 0;
   if (latencia) {
     window.__llamadas = [];
     for (const m of ['list', 'insert', 'upsert', 'update', 'updateWhere', 'remove', 'removeWhere', 'rpc', 'adminUsuarios']) {

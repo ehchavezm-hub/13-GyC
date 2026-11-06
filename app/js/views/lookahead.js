@@ -42,12 +42,12 @@ export async function render(el, { query }) {
   const mostrarVista = v => {
     pag.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('activo', b.dataset.v === v));
     pag.querySelectorAll('[data-vista]').forEach(d => d.classList.toggle('oculto', d.dataset.vista !== v));
-    try { localStorage.setItem('lpsgt-la-vista', v); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem('gyc-la-vista', v); } catch { /* sin almacenamiento */ }
     if (v === 'la') grilla?.tabla?.redraw(true);
   };
   pag.querySelector('.pestanas-la').addEventListener('click', e => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) mostrarVista(v); });
   let vistaInicial = 'la';
-  try { vistaInicial = localStorage.getItem('lpsgt-la-vista') || 'la'; } catch { /* sin almacenamiento */ }
+  try { vistaInicial = localStorage.getItem('gyc-la-vista') || 'la'; } catch { /* sin almacenamiento */ }
   mostrarVista(vistaInicial);
   const sel = pag.querySelector('[data-resp]');
   sel.innerHTML = `<option value="todos">Todo el equipo</option>` + lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('');

@@ -14,7 +14,7 @@ const OUT = process.argv[2];
   console.log('INICIO:', (await p.textContent('body')).slice(0, 120).replace(/\s+/g,' '));
   const usuarios = (process.argv[3] || '1').split(',').map(Number);
   for (const u of usuarios) {
-    await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+    await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
     await p.goto(BASE + '?demo&u=' + u + '#/');
     await p.waitForSelector('.usuarios-demo button');
     await p.click(`.usuarios-demo button:nth-child(${u})`);

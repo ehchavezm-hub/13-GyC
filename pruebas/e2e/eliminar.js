@@ -7,7 +7,7 @@ const BASE = 'http://localhost:8099/';
   p.on('console', m => { if (m.type() === 'error' && !/404|ERR_FAILED|fonts/.test(m.text())) errs.push(m.text()); });
   await p.route('**/fonts.g*/**', r => r.abort());
   const chk = (c, m) => { console.log((c ? 'OK  ' : 'FALLA ') + m); if (!c) errs.push(m); };
-  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('lpsgt-demo-db')));
+  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('gyc-demo-db')));
   await p.goto(BASE + '?demo'); await p.evaluate(() => localStorage.clear());
   await p.goto(BASE + '?demo&x=1#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(1)'); await p.waitForTimeout(1000);
   await p.goto(BASE + '?demo#/config/usuarios'); await p.waitForTimeout(1200);
@@ -32,7 +32,7 @@ const BASE = 'http://localhost:8099/';
   await p.goto(BASE + '?demo#/plan'); await p.waitForTimeout(1300);
   chk(!(await p.$$eval('[data-resp] option', o => o.map(x => x.textContent).join())).includes('Ana Torres'), 'no aparece en selector de responsables');
   // delegado no ve eliminar
-  await p.evaluate(() => localStorage.removeItem('lpsgt-demo-usuario'));
+  await p.evaluate(() => localStorage.removeItem('gyc-demo-usuario'));
   await p.goto(BASE + '?demo&x=2#/'); await p.waitForSelector('.usuarios-demo button'); await p.click('.usuarios-demo button:nth-child(2)'); await p.waitForTimeout(1000);
   await p.goto(BASE + '?demo#/config/usuarios'); await p.waitForTimeout(1200);
   chk((await p.$$eval('[data-eliminar]', b => b.length)) === 0, 'delegado no puede eliminar');
