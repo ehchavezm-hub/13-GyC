@@ -1,5 +1,5 @@
 # Verifica las migraciones de Neon, la compatibilidad del API con la base, la sintaxis del aplicativo
-# y que todas las pantallas funcionen (modo demostración y modo real contra un PostgreSQL local).
+# y que todas las pantallas funcionen en modo real contra un PostgreSQL local (Clerk simulado).
 # Nunca se conecta a la base de producción: las migraciones de Neon las ejecuta el dueño en el SQL Editor.
 name: Pruebas
 
@@ -36,8 +36,16 @@ jobs:
           node-version: 22
       - name: Sintaxis de los módulos
         run: for f in $(find app/js api -name '*.js') app/config.js app/sw.js; do node --check "$f" || exit 1; done
-      - name: Prueba de humo (modo demostración)
+      - name: Instalar PostgreSQL 16 y dependencias
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-16 >/dev/null
+          sudo systemctl start postgresql
+          sudo -u postgres psql -qc "alter user postgres password 'postgres'" -c "create database gyc_local"
+          npm ci
           cd pruebas && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
-          (cd ../app && python3 -m http.server 8099 >/dev/null 2>&1 &)
-          sleep 1 && node humo.mjs http://localhost:8099/
+      - name: Todas las pantallas en modo real (API local + PostgreSQL, Clerk simulado)
+        env:
+          DATABASE_URL_PRUEBAS: postgres://postgres:postgres@localhost:5432/gyc_local
+        run: |
+          node pruebas/api/servidor-local.mjs 8098 --reiniciar &
+          sleep 3 && cd pruebas && node api/recorrido-real.mjs http://localhost:8098/

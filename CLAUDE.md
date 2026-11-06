@@ -20,11 +20,10 @@ app/           Frontend (HTML/CSS/JS puro)
   config.js    window.GYC_CONFIG = { clerkPublishableKey, apiBase }
   js/
     data/
-      api.js          Punto de entrada — elige adapter-api o adapter-demo
+      api.js          Punto de entrada (único adaptador: adapter-api)
       adapter-api.js  Adaptador Vercel/Neon+Clerk (browser)
-      adapter-demo.js Adaptador demostración (localStorage)
     views/
-      login.js        Monta Clerk SignIn o selector demo
+      login.js        Monta Clerk SignIn (muestra el error si Clerk no carga)
       programa-arranque.js  Checklist CR-PG-SGP-01-F1 (74 ítems)
 api/
   _lib/
@@ -46,6 +45,7 @@ pruebas/
 ## Convenciones de código
 - ES Modules (`"type": "module"` en package.json)
 - Vanilla JS sin frameworks — sin React, Vue, etc.
+- Sin modo demostración: el aplicativo trabaja solo con el API real
 - El adaptador expone: `list, insert, upsert, update, updateWhere, remove, removeWhere, rpc, adminUsuarios, fijarArea, subscribe, auth`
 - `subscribe()` es no-op (Realtime no disponible en Vercel)
 - Variables de config: `window.GYC_CONFIG` (no `LPSGT_CONFIG`)
@@ -57,7 +57,6 @@ pruebas/
 - `bash db/tests/run.sh` — migraciones + API en un PostgreSQL temporal
 - `DATABASE_URL_PRUEBAS=postgres://… node pruebas/api/servidor-local.mjs 8098 --reiniciar` y luego
   `node pruebas/api/recorrido-real.mjs` — todas las pantallas en modo real con Clerk simulado
-- `node pruebas/humo.mjs` — todas las pantallas en modo demostración (servir `app/` en el puerto 8099)
 
 ## Despliegue
 1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY` (opcional `CLERK_JWT_KEY` para verificar sin red)

@@ -1,6 +1,6 @@
 // Arranque del aplicativo: sesión, catálogo, estructura y rutas.
-import { api, modoDemo, mensajeError } from './data/api.js';
-import { store, cargarPerfil, cargarCatalogo, esStaff, esSuperadmin, esAdmin } from './core/store.js';
+import { api, mensajeError } from './data/api.js';
+import { store, cargarPerfil, cargarCatalogo, esStaff, esAdmin } from './core/store.js';
 import { ruta, iniciarRouter } from './core/router.js';
 import { montarLayout } from './ui/layout.js';
 import { mostrarLogin, mostrarPendiente, mostrarNuevaClave } from './views/login.js';
@@ -123,37 +123,30 @@ async function arrancar() {
       return true;
     },
   });
-  // Base recién conectada y datos cargados antes en el modo demostración: se avisa dónde traerlos
-  if (!modoDemo && esSuperadmin() && !store.proyectos.length) {
-    import('./services/traer-demo.js').then(m => {
-      if (m.leerDemo()) toast('Este navegador tiene datos del modo demostración. Puede traerlos a la base real en Configuración → Respaldo → «Traer datos del modo demostración».', 'info', 20000);
-    });
-  }
-  if (!store.usuario.tour_visto && !modoDemo) {
+  if (!store.usuario.tour_visto) {
     import('./views/ayuda.js').then(m => m.iniciarRecorrido());
   }
 }
 
+// Espera el script de Clerk (lo agrega config.js) y lo inicia. Un fallo queda en window.__clerkError
+// para que la pantalla de ingreso lo muestre en lugar de quedar en blanco.
 async function inicializarClerk() {
   const key = window.GYC_CONFIG?.clerkPublishableKey;
-  if (!key || modoDemo) return;   // modo demostración: Clerk no se carga (config.js)
-  // Espera hasta 10s a que el script Clerk se cargue
-  for (let i = 0; i < 20; i++) {
-    if (typeof window.Clerk !== 'undefined') break;
-    await new Promise(r => setTimeout(r, 500));
+  if (!key) { window.__clerkError = 'Falta clerkPublishableKey en config.js.'; return; }
+  for (let i = 0; i < 40 && typeof window.Clerk === 'undefined' && !window.__clerkError; i++) {
+    await new Promise(r => setTimeout(r, 250));
   }
-  if (typeof window.Clerk === 'undefined') { console.warn('Clerk SDK no disponible'); return; }
+  if (typeof window.Clerk === 'undefined') {
+    window.__clerkError ||= 'El script de Clerk no cargó (revise la conexión o un bloqueador de contenido).';
+    return;
+  }
   try {
-    // Clerk v5 CDN con data-clerk-publishable-key: auto-inicializa; solo llamar load() si aún no está listo
-    if (typeof window.Clerk === 'function') {
-      // Fallback: CDN sin auto-init, construir manualmente
-      window.Clerk = new window.Clerk(key);
-      await window.Clerk.load();
-    } else if (typeof window.Clerk.load === 'function' && !window.Clerk.loaded) {
-      await window.Clerk.load();
-    }
-    // Si ya está completamente cargado (auto-init del CDN), no hacer nada
-  } catch (e) { console.error('Clerk.load error:', e); }
+    if (typeof window.Clerk === 'function') window.Clerk = new window.Clerk(key);
+    if (!window.Clerk.loaded) await window.Clerk.load();
+  } catch (e) {
+    console.error('Clerk.load error:', e);
+    window.__clerkError = `Clerk no pudo iniciar: ${e?.errors?.[0]?.longMessage || e?.message || e}`;
+  }
 }
 
 inicializarClerk().then(arrancar);

@@ -1,6 +1,6 @@
 /**
  * Adaptador de datos para Vercel API (api/datos.js, api/admin-usuarios.js) + Clerk Auth.
- * Misma interfaz pública que adapter-demo.js.
+ * Única capa de datos del aplicativo (ver api.js).
  */
 
 export function crearAdaptadorApi(apiBase = '/api') {
@@ -140,23 +140,10 @@ export function crearAdaptadorApi(apiBase = '/api') {
     },
   };
 
-  // ── usuariosDemo ─────────────────────────────────────────────────────────────
-
-  function usuariosDemo() {
-    return [];
-  }
-
-  // ── reiniciar ────────────────────────────────────────────────────────────────
-
-  function reiniciar() {
-    _areaId = null;
-  }
-
   return {
     tipo: 'api',
     list, insert, upsert, update, updateWhere,
     remove, removeWhere, rpc,
     adminUsuarios, fijarArea, subscribe, auth,
-    usuariosDemo, reiniciar,
   };
 }

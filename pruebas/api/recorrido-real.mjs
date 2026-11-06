@@ -38,6 +38,28 @@ const navegador = await chromium.launch(opciones);
 const errores = [];
 let pantallas = 0;
 
+// Pantalla de ingreso: sin modo demostración y, si Clerk no carga, un aviso en lugar de una caja en blanco
+{
+  const ctx = await navegador.newContext({ serviceWorkers: 'block' });
+  const pagina = await ctx.newPage();
+  await pagina.route('**/clerk.browser.js', r => r.abort());
+  await pagina.goto(BASE);
+  const aviso = await pagina.locator('.login .aviso.error').textContent({ timeout: 15000 }).catch(() => null);
+  if (!aviso || !/Clerk/.test(aviso)) errores.push(`ingreso: sin aviso cuando Clerk no carga (${aviso})`);
+  if (await pagina.getByText(/demostraci/i).count()) errores.push('ingreso: todavía ofrece el modo demostración');
+  // Con Clerk disponible y sin sesión se monta el formulario
+  await pagina.unroute('**/clerk.browser.js');
+  let montado = false;
+  await pagina.exposeFunction('__montado', () => { montado = true; });
+  await pagina.route('**/clerk.browser.js', r => r.fulfill({ contentType: 'text/javascript', body: `window.Clerk = { loaded: true, user: null,
+    session: null, addListener() { return () => {}; }, load: async () => {}, mountSignIn(el) { el.innerHTML = '<form>Ingreso</form>'; window.__montado(); } };` }));
+  await pagina.reload();
+  await pagina.waitForTimeout(1500);
+  if (!montado) errores.push('ingreso: no se montó el formulario de Clerk');
+  await ctx.close();
+  console.log('✔ pantalla de ingreso');
+}
+
 for (const usuario of ['user_admin', 'user_lider', 'user_consulta']) {
   const ctx = await navegador.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
   const pagina = await ctx.newPage();
