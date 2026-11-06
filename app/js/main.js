@@ -27,6 +27,7 @@ async function verificarUsuarioLocal(id) {
   if (anterior && anterior !== id) await borrarDatosLocales();
 }
 
+ruta('/programa-arranque', () => import('./views/programa-arranque.js'), { staff: true });
 ruta('/plan', () => import('./views/plan.js'), { staff: true });
 ruta('/lookahead', () => import('./views/lookahead.js'), { staff: true });
 ruta('/backlog', () => import('./views/backlog.js'), { staff: true });

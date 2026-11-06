@@ -455,3 +455,43 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 .btn-excel:hover { background: #155734; border-color: #155734; }
 /* Actividades fuera de un Grupo LPS (aviso en Look Ahead y Plan semanal) */
 .chip-filtro.chip-alerta { background: #fff4e5; border-color: #f0a443; color: #8a4b00; }
+
+/* ───────────────── Programa de Arranque ───────────────── */
+.arr-cab-info { padding: 6px 0 10px; font-size: 13px; }
+.arr-cab-fields { display: flex; flex-wrap: wrap; gap: 6px 24px; }
+.arr-cab-fields span { color: var(--texto-2); }
+.arr-cab-fields b { color: var(--texto); }
+
+.kpi-semana .kpi-sub { display: block; font-size: 10px; color: var(--texto-3); margin-top: 1px; }
+.kpi-val.verde { color: #1a8a1a; }
+.kpi-val.naranja { color: var(--naranja); }
+.kpi-val.rojo { color: #d93025; }
+
+.arr-filtros { display: flex; align-items: center; gap: 16px; padding: 6px 0 10px; flex-wrap: wrap; }
+.arr-filtros label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+.arr-tabla-wrap { overflow: hidden; }
+.arr-tabla-scroll { overflow-x: auto; }
+.arr-tabla { border-collapse: collapse; font-size: 12px; white-space: nowrap; width: max-content; min-width: 100%; }
+.arr-tabla th, .arr-tabla td { border: 1px solid var(--borde); padding: 4px 6px; text-align: left; vertical-align: middle; }
+.arr-tabla thead th { background: var(--azul-claro); font-weight: 700; text-align: center; position: sticky; top: 0; z-index: 2; }
+.arr-tabla thead .subhead th { background: #e8f0fb; font-size: 11px; }
+.arr-tabla tbody tr:hover { background: var(--fondo-hover); }
+.arr-tabla .row-opc { color: var(--texto-3); }
+
+.col-item { width: 42px; text-align: center; font-weight: 700; }
+.col-proceso { width: 160px; }
+.col-area { width: 160px; }
+.col-oblig { width: 44px; text-align: center; color: var(--azul-ejec); }
+.col-desc { min-width: 300px; white-space: normal; max-width: 400px; }
+.col-resp { width: 140px; }
+.col-fp, .col-fr { width: 90px; text-align: center; }
+.col-com { min-width: 160px; }
+.col-sem { width: 70px; text-align: center; background: #f0f4ff; }
+.col-plan, .col-cum { width: 34px; text-align: center; }
+
+[data-editable] { cursor: pointer; }
+[data-editable]:hover { background: var(--azul-claro); }
+.cel-input { width: 100%; border: none; background: var(--fondo); padding: 2px 4px; font: inherit; outline: 1px solid var(--azul-ejec); }
+
+.proy-badge { font-size: 13px; color: var(--texto-2); padding: 2px 8px; background: var(--azul-claro); border-radius: 20px; }

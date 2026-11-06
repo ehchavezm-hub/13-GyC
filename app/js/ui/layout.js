@@ -10,7 +10,7 @@ export const NAV = [
   { grupo: 'Administración' },
   { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Documentos' },
-  { ruta: '/plan', ico: '📅', texto: 'Programa de arranque', si: esStaff },
+  { ruta: '/programa-arranque', ico: '📋', texto: 'Programa de arranque', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Plan de gestión', si: esStaff },
   { ruta: '/backlog', ico: '🗃', texto: 'Plan de construcción', si: esStaff },
   { ruta: '/cartera', ico: '🗂', texto: 'Programa de cierre', si: () => esStaff() || puede('crear_solicitud') },

@@ -29,6 +29,7 @@ const ARCHIVOS = [
   'js/views/login.js',
   'js/views/lookahead.js',
   'js/views/backlog.js',
+  'js/views/programa-arranque.js',
   'js/views/mejoras.js',
   'js/views/plan.js',
   'js/views/plantillas.js',

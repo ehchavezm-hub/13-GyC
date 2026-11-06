@@ -9,6 +9,7 @@ export const TABLAS = new Set([
   'notificaciones', 'mejoras', 'mejora_votos',
   'proyecto_lideres', 'proyecto_favoritos',
   'proyecto_gerencias',
+  'programa_arranque_items', 'programa_arranque', 'programa_arranque_detalle',
 ]);
 
 export const OPERADORES = new Set(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'is', 'in', 'like', 'ilike']);
