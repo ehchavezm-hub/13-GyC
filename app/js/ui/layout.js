@@ -43,8 +43,7 @@ export function montarLayout(raiz, { alSalir }) {
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav nav-admin" aria-label="Administración"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
-        <div class="menu-proy-cab"><h3>Proyecto</h3>
-          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
+        <div class="menu-proy-cab"><h3>Proyecto</h3></div>
         <input type="search" placeholder="Buscar código o nombre…" aria-label="Buscar proyecto">
         <div class="proy-lista"></div>
       </section>
@@ -92,7 +91,6 @@ export function montarLayout(raiz, { alSalir }) {
     if (a === 'actualizar') location.reload();
     if (a === 'actualizar-menu') menuActualizar();
   });
-  app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto(null, { sub: true })));
 
   try {
     const previa = sessionStorage.getItem('gyc-recarga-forzada');
