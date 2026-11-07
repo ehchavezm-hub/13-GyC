@@ -218,15 +218,29 @@ function pintarAlcance(f) {
 
 function tablaEditable(f, opts) {
   const { seccion, titulo, columnas, vacio, nueva, guardar, extraBotones = '' } = opts;
-  const filas = opts.filas();   // siempre el estado actual
+  const guardadas = opts.filas();   // siempre el estado actual
+  // Sin filas guardadas se muestran las sugeridas por defecto (p. ej. los cargos del formato), por completar
+  const sugeridas = !guardadas.length && opts.porDefecto ? opts.porDefecto() : [];
+  const filas = guardadas.length ? guardadas : sugeridas;
   const s = sec(f, seccion);
   const editando = s.dataset.editando === '1';
-  const celda = (c, r) => c.render ? c.render(r) : esc(r[c.name] ?? '');
+  const celda = (c, r) => c.render ? c.render(r) : (esc(r[c.name] ?? '') || (sugeridas.length ? '<span class="nota">por completar</span>' : ''));
   if (!editando) {
-    s.innerHTML = `${cab(titulo, f)}${filas.length ? `<div class="admin-tabla-wrap"><table class="simple ficha-tabla"><thead><tr>${columnas.map(c => `<th class="${c.num ? 'num' : ''}">${c.label}</th>`).join('')}</tr></thead>
+    s.innerHTML = `${cab(titulo, f)}${sugeridas.length ? `<p class="nota" style="margin:-4px 0 8px">${opts.avisoPorDefecto || 'Filas sugeridas: complete y guarde.'}</p>` : ''}
+      ${filas.length ? `<div class="admin-tabla-wrap"><table class="simple ficha-tabla"><thead><tr>${columnas.map(c => `<th class="${c.num ? 'num' : ''}">${c.label}</th>`).join('')}</tr></thead>
       <tbody>${filas.map(r => r.es_titulo ? `<tr class="ficha-subtitulo"><td colspan="${columnas.length}">${esc(r.descripcion)}</td></tr>`
-        : `<tr>${columnas.map(c => `<td class="${c.num ? 'num' : ''}">${celda(c, r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p class="nota">${vacio}</p>`}`;
-    s.querySelector('[data-editar]')?.addEventListener('click', () => { s.dataset.editando = '1'; tablaEditable(f, opts); });
+        : `<tr>${columnas.map(c => `<td class="${c.num ? 'num' : ''}">${celda(c, r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p class="nota">${vacio}</p>`}
+      ${f.editable ? '<div class="ficha-sec-pie"><button class="btn btn-sm" data-agregar-vista>＋ Agregar fila</button><button class="btn btn-sm" data-editar-pie>✎ Editar</button></div>' : ''}`;
+    const editar = (conNueva = false) => {
+      s.dataset.editando = '1';
+      s._borrador = filas.map(r => ({ ...r }));
+      if (conNueva) s._borrador.push(nueva());
+      tablaEditable(f, opts);
+      if (conNueva) s.querySelector('tbody tr:last-child input')?.focus();
+    };
+    s.querySelector('[data-editar]')?.addEventListener('click', () => editar());
+    s.querySelector('[data-editar-pie]')?.addEventListener('click', () => editar());
+    s.querySelector('[data-agregar-vista]')?.addEventListener('click', () => editar(true));
     return;
   }
   // Modo edición: filas con campos; se agregan, quitan, ordenan y se guardan todas juntas
@@ -244,6 +258,15 @@ function tablaEditable(f, opts) {
     tr.querySelectorAll('[data-c]').forEach(inp => { r[inp.dataset.c] = inp.value; });
   });
   s.querySelector('[data-agregar]').onclick = () => { leer(); borrador.push(nueva()); tablaEditable(f, opts); s.querySelector('tbody tr:last-child input')?.focus(); };
+  s.querySelector('[data-estandar]')?.addEventListener('click', () => {
+    leer();
+    const hay = new Set(borrador.map(r => normalizar(r.cargo || '')));
+    const faltan = (opts.porDefecto?.() || []).filter(r => !hay.has(normalizar(r.cargo)));
+    if (!faltan.length) { ok('Ya están todos los cargos estándar.'); return; }
+    borrador.push(...faltan);
+    tablaEditable(f, opts);
+    ok(`${faltan.length} cargo(s) estándar agregado(s).`);
+  });
   s.querySelector('[data-subtitulo]')?.addEventListener('click', () => { leer(); borrador.push({ ...nueva(), es_titulo: true }); tablaEditable(f, opts); s.querySelector('tbody tr:last-child input')?.focus(); });
   s.querySelector('tbody').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -297,9 +320,18 @@ function pintarVolumenes(f) {
   });
 }
 
+// Cargos por defecto de la organización del proyecto (formato CR-PG-SGP-01-F1 r1, pestaña "0.Ficha del proyecto")
+const CARGOS_ESTANDAR = ['Gerente de Proyecto', 'Gerente de Construcción', 'Jefe de SSOMA', 'Analista de Admin. Contratos',
+  'Jefe de Admin. Obra - Jefe Admin. adjunto', 'Jefe de Producción Civil', 'Jefe de Producción Mecánica', 'Jefe de Producción E&I',
+  'Líder de Precomisionamiento', 'Jefe de Oficina Técnica', 'Control documentario', 'Jefe de Calidad', 'Responsable Dossier de Calidad',
+  'Jefe de Control de Proyecto', 'Jefe de Costos', 'Ing. Planeamiento', 'Ing. Productividad y valorizaciones', 'Jefe de Equipos', 'Jefe de Almacén'];
+
 function pintarStaff(f) {
   tablaEditable(f, {
     seccion: 'staff', titulo: 'Organización del proyecto', filas: () => f.staff,
+    porDefecto: () => CARGOS_ESTANDAR.map(cargo => ({ cargo, principal: '', reemplazo: '' })),
+    avisoPorDefecto: 'Cargos estándar del formato: pulse «✎ Editar» para registrar los responsables (puede agregar o quitar cargos).',
+    extraBotones: ' <button class="btn btn-sm" data-estandar title="Agrega los cargos estándar que no estén en la lista">＋ Agregar cargos estándar</button>',
     vacio: 'Aún no se registra la organización del proyecto.',
     columnas: [{ name: 'cargo', label: 'Cargo' }, { name: 'principal', label: 'Responsable principal' }, { name: 'reemplazo', label: 'Contraturno y/o reemplazo' }],
     nueva: () => ({ cargo: '', principal: '', reemplazo: '' }),
