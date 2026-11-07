@@ -780,7 +780,10 @@ async function imagenCurva(c) {
 }
 
 /** Arma el informe (programa completo al último avance + Curva S). soloDatos: devuelve el contenido sin abrir la vista. */
-async function exportarPDF({ soloDatos = false } = {}) {
+// q74: dos PDF según la pestaña: Definición (lo planificado) y Seguimiento (avance, Curva S y estado). El correo
+// siempre adjunta el de Seguimiento. Ambos con los mismos criterios de tipografía y anchos.
+async function exportarPDF({ soloDatos = false, tipo = (!soloDatos && estado.modo === 'definicion') ? 'definicion' : 'seguimiento' } = {}) {
+  const def = tipo === 'definicion';
   const { imprimirPDF, tablaPDF, kpisPDF } = await import('../services/pdf.js');
   let curvaPng = null;
   // Todo el programa (sin filtros) a la fecha de la última reunión registrada
@@ -800,18 +803,28 @@ async function exportarPDF({ soloDatos = false } = {}) {
     const fecha = estado.reuniones.length ? fmtFecha(estado.reunion) : 'sin reuniones de seguimiento';
     // Todo seguido, como en la vista preliminar: cambia de hoja solo cuando se llena. Solo el gráfico no se parte y
     // el título de un proceso no queda solo al pie de una hoja.
-    // Tipografía (q66): celdas y encabezados 6,5 pt Manrope, interlineado 1,1; títulos de proceso 10 pt
-    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; font-size: 10pt; }
+    // Tipografía (q66, q70): celdas y encabezados 6,5 pt Manrope, interlineado 1,1; títulos de proceso 8 pt
+    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 10px; font-size: 8pt; }
       .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
-      table.pa-pdf-prog { width: calc(100% - 0.6mm); border: .75pt solid #E0E0E0; table-layout: fixed; border-collapse: collapse; font-family: 'Manrope', sans-serif; font-size: 6.5pt; line-height: 1.1; }
+      table.pa-pdf-prog { width: calc(100% - 0.6mm); border: .375pt solid #E0E0E0; table-layout: fixed; border-collapse: collapse; font-family: 'Manrope', sans-serif; font-size: 6.5pt; line-height: 1.1; }
       table.pa-pdf-prog th, table.pa-pdf-prog td { font-size: 6.5pt; line-height: 1.1; padding: 1mm 1mm; vertical-align: top; text-align: left;
         hyphens: manual; -webkit-hyphens: manual; word-break: normal; overflow-wrap: normal; }
       table.pa-pdf-prog th { font-weight: 700; color: #003366; white-space: normal; }
       table.pa-pdf-prog td.f, table.pa-pdf-prog td.n { white-space: nowrap; }
       table.pa-pdf-prog .n { text-align: right; }
-      table.pa-pdf-prog tr > :last-child { border-right: .75pt solid #E0E0E0; }   /* q67: línea derecha de Comentarios siempre visible */
-      table.pa-pdf-prog tr > :first-child { border-left: .75pt solid #E0E0E0; }</style>`;
-    cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
+      table.pa-pdf-prog th, table.pa-pdf-prog td { border: .25pt solid #E0E0E0; }   /* q71: líneas al 50 % (antes 0,5 pt) */
+      table.pa-pdf-prog tr > :last-child { border-right: .375pt solid #E0E0E0; }   /* q67: línea derecha de Comentarios siempre visible */
+      table.pa-pdf-prog tr > :first-child { border-left: .375pt solid #E0E0E0; }</style>`;
+    if (def) {
+      const tieneResp = i => !!respDe(i.item_codigo), tieneFechas = i => !!(det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado);
+      const conResp = apl.filter(tieneResp).length, conFechas = apl.filter(tieneFechas).length;
+      const sinDefinir = apl.filter(i => !tieneResp(i) || !tieneFechas(i)).length;   // le falta responsable o fechas
+      cuerpo += `<h2>Definición del Programa de Arranque · al ${fmtFecha(hoy())}</h2>` + kpisPDF([
+        ['Ítems', String(items.length), css('--navy')], ['Aplican', String(apl.length), css('--verde')],
+        ['N/A', String(items.length - apl.length), css('--plata')], ['Con responsable', `${conResp}/${apl.length}`, css('--azul')],
+        ['Con fechas', `${conFechas}/${apl.length}`, css('--azul')], ['Sin definir', String(sinDefinir), css('--amarillo')],
+      ]);
+    } else cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
       ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
       ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
       ['En curso', String(cuenta('en_curso')), css('--azul')], ['Sin definir', String(cuenta('sin_definir')), css('--plata')],
@@ -820,7 +833,7 @@ async function exportarPDF({ soloDatos = false } = {}) {
       ['Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? css('--peligro') : css('--verde')],
       ['Índice', prog > 0 ? (real / prog).toFixed(2) : '—', css('--navy')],
     ]);
-    if (conCurva) {
+    if (conCurva && !def) {
       cuerpo += `<h2>Curva S</h2><p style="margin:2px 0 6px;font-size:11px;color:#555555">${c.items.length} ítems con fechas programadas · franja ${fmtFecha(c.desde)} – ${fmtFecha(c.hasta)}${c.sinFechas ? ` · ${c.sinFechas} sin fechas no entran en la curva` : ''}</p>`;
       curvaPng = await imagenCurva(c);
       cuerpo += `<div class="pa-pdf-graf"><img src="${curvaPng}" style="width:100%;max-height:330px;object-fit:contain"></div>`;
@@ -879,11 +892,14 @@ async function exportarPDF({ soloDatos = false } = {}) {
       { titulo: 'Estado', valor: i => ESTADOS[estadoDe(i.item_codigo)].txt, ancho: 72, estilo: i => `color:${css(COLOR_ESTADO[estadoDe(i.item_codigo)])};font-weight:700` },
       { titulo: 'Comentarios', valor: i => segVigente(i.item_codigo)?.comentarios || det(i.item_codigo).comentarios || '', ancho: 140 },
     ];
+    const columnasDef = [...columnas.filter(c => ['It', 'Area', 'Descripción de actividad', 'Aplica', 'Resp.', 'Inicio prog.', 'Fin prog.'].includes(c.titulo)),
+      { titulo: 'Comentarios', valor: i => det(i.item_codigo).comentarios || '', ancho: 140 }];
     for (const proceso of [...new Set(items.map(i => i.proceso))]) {
       const del = items.filter(i => i.proceso === proceso), a = del.filter(i => aplica(i.item_codigo));
       const prom = a.length ? Math.round(a.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / a.length) : 0;
-      const tabla = tablaPrograma(columnas, del);
-      const titulo = `<h3>${esc(proceso)} · ${a.filter(i => avanceDe(i.item_codigo) >= 100).length}/${a.length} terminados · ${prom}%</h3>`;
+      const tabla = tablaPrograma(def ? columnasDef : columnas, del);
+      const titulo = def ? `<h3>${esc(proceso)} · ${del.length} ítem${del.length === 1 ? '' : 's'} · ${a.length} aplican</h3>`
+        : `<h3>${esc(proceso)} · ${a.filter(i => avanceDe(i.item_codigo) >= 100).length}/${a.length} terminados · ${prom}%</h3>`;
       cuerpo += titulo + tabla;
     }
     if (soloDatos) {
@@ -897,7 +913,8 @@ async function exportarPDF({ soloDatos = false } = {}) {
           lista_por_vencer: apl.filter(i => estadoDe(i.item_codigo) === 'por_vencer').map(fila) },
       };
     }
-    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo: nombreArchivoPA(fecha) });
+    imprimirPDF(def ? 'Programa de Arranque · Definición' : 'Programa de Arranque', cuerpo,
+      { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo: def ? nombreArchivoPA(fmtFecha(hoy()), 'Definición') : nombreArchivoPA(fecha) });
   } finally {
     estado.reunion = guardado.reunion;
     Object.assign(filtros, guardado.filtros);
@@ -1023,11 +1040,11 @@ function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] })
 }
 
 /** Nombre del PDF (q48): Proyecto_Programa de arranque_DD-MM-AAAA (fecha del avance) */
-function nombreArchivoPA(fecha) {
+function nombreArchivoPA(fecha, variante = '') {
   const p = proyecto(estado.proyId) || {};
   const proy = [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
   const f = /^\d{2}\/\d{2}\/\d{4}$/.test(fecha) ? fecha.replaceAll('/', '-') : fmtFecha(hoy()).replaceAll('/', '-');
-  return `${proy}_Programa de arranque_${f}`.replace(/[\\/:*?"<>|]+/g, ' ');
+  return `${proy}_Programa de arranque${variante ? ` - ${variante}` : ''}_${f}`.replace(/[\\/:*?"<>|]+/g, ' ');
 }
 
 /** Mensaje inicial del correo (editable): datos del proyecto y estado del programa de arranque (q46) */
