@@ -345,24 +345,26 @@ function planItem(d, t) {
   return total > 0 ? ((new Date(t) - new Date(d.inicio_programado)) / 86400000) / total * 100 : 100;
 }
 function datosCurva() {
-  const items = filtrados().filter(i => aplica(i.item_codigo));
-  const n = items.length || 1;
-  const conFechas = items.filter(i => det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado);
-  const fechasPlan = conFechas.flatMap(i => [det(i.item_codigo).inicio_programado, det(i.item_codigo).fin_programado]);
-  const extremos = [...fechasPlan, ...estado.reuniones, estado.reunion].sort();
-  if (!extremos.length) return null;
-  const desde = extremos[0], hasta = extremos.at(-1);
-  const fechas = new Set([...estado.reuniones, estado.reunion]);
-  for (let f = desde; f <= hasta; f = fechaMas(f, 7)) fechas.add(f);
-  fechas.add(hasta);
-  const eje = [...fechas].filter(f => f >= desde && f <= hasta).sort();
+  const aplican = filtrados().filter(i => aplica(i.item_codigo));
+  // Solo los ítems con Inicio prog. y Fin prog.: la curva programada va de 0 % (inicio más antiguo) a 100 % (fin más lejano)
+  const items = aplican.filter(i => det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado);
+  if (!items.length) return { items, sinFechas: aplican.length, eje: [] };
+  const n = items.length;
+  const desde = items.map(i => det(i.item_codigo).inicio_programado).sort()[0];
+  const hasta = items.map(i => det(i.item_codigo).fin_programado).sort().at(-1);
+  const fechas = new Set([desde, hasta]);
+  for (let f = desde; f < hasta; f = fechaMas(f, 7)) fechas.add(f);
+  for (const f of [...estado.reuniones, estado.reunion]) if (f >= desde && f <= hasta) fechas.add(f);
+  const eje = [...fechas].sort();
   const prog = f => Math.round(items.reduce((s, i) => s + planItem(det(i.item_codigo), f), 0) / n * 10) / 10;
   const real = f => Math.round(items.reduce((s, i) => s + Number(segVigente(i.item_codigo, f)?.avance ?? 0), 0) / n * 10) / 10;
+  const enFranja = f => f >= desde && f <= hasta;
   return {
-    items, sinFechas: items.length - conFechas.length, eje,
+    items, sinFechas: aplican.length - items.length, eje, desde, hasta,
     programado: eje.map(prog),
     real: eje.map(f => (estado.reuniones.includes(f) && f <= estado.reunion ? real(f) : null)),
-    reuniones: estado.reuniones.filter(f => f <= estado.reunion).map(f => ({ f, p: prog(f), r: real(f) })),
+    reuniones: estado.reuniones.filter(f => f <= estado.reunion && enFranja(f)).map(f => ({ f, p: prog(f), r: real(f) })),
+    progEn: prog, realEn: real,
   };
 }
 
@@ -370,13 +372,13 @@ async function pintarCurva() {
   const caja = estado.wrap.querySelector('[data-tabla]');
   estado.grafico?.destroy?.();
   const c = datosCurva();
-  if (!c || !c.items.length) {
-    caja.innerHTML = '<p class="pa-sin">No hay ítems que apliquen con estos filtros.</p>';
+  if (!c.items.length) {
+    caja.innerHTML = `<p class="pa-sin">${c.sinFechas ? 'Ningún ítem que aplica tiene Inicio prog. y Fin prog.: complételos en la vista Definición para ver la Curva S.' : 'No hay ítems que apliquen con estos filtros.'}</p>`;
     return;
   }
-  const ultima = c.reuniones.at(-1);
-  const p = c.programado[c.eje.indexOf(estado.reunion)] ?? 0;
-  const r = ultima ? ultima.r : 0;
+  // Valores a la fecha de la reunión elegida (aunque caiga fuera de la franja)
+  const p = c.progEn(estado.reunion);
+  const r = estado.reuniones.some(f => f <= estado.reunion) ? c.realEn(estado.reunion) : 0;
   const desv = Math.round((r - p) * 10) / 10;
   const indice = p > 0 ? Math.round(r / p * 100) / 100 : null;
   caja.innerHTML = `<div class="pa-curva">
@@ -385,7 +387,7 @@ async function pintarCurva() {
       <span><i class="pa-ley real"></i>Real: <b>${r}%</b></span>
       <span>Desviación: <b class="${desv < 0 ? 'baja' : 'sube'}">${desv > 0 ? '+' : ''}${desv} pts</b></span>
       <span title="Real ÷ Programado (1,00 = según lo programado)">Índice de desempeño: <b class="${indice !== null && indice < 1 ? 'baja' : 'sube'}">${indice === null ? '—' : indice.toFixed(2)}</b></span>
-      <span class="pa-vacio">${c.items.length} ítems que aplican${c.sinFechas ? ` · ${c.sinFechas} sin fechas programadas (cuentan 0 % programado)` : ''}</span>
+      <span class="pa-vacio">${c.items.length} ítems con fechas programadas · franja ${fmtFecha(c.desde)} – ${fmtFecha(c.hasta)}${c.sinFechas ? ` · ${c.sinFechas} sin fechas: no entran en la curva` : ''}</span>
     </div>
     <div class="pa-curva-graf"><canvas data-g="curva"></canvas></div>
     <table class="pa-curva-tabla"><thead><tr><th>Fecha rev.</th><th>% Programado</th><th>% Real</th><th>Desviación</th><th>Índice</th></tr></thead>
@@ -787,8 +789,9 @@ async function exportarPDF() {
     const cuenta = k => apl.filter(i => estadoDe(i.item_codigo) === k).length;
     const avance = Math.round(apl.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / n);
     const c = datosCurva();
-    const prog = c ? (c.programado[c.eje.indexOf(estado.reunion)] ?? 0) : 0;
-    const real = c?.reuniones.at(-1)?.r ?? 0;
+    const conCurva = c.items.length > 0;
+    const prog = conCurva ? c.progEn(estado.reunion) : 0;
+    const real = conCurva && estado.reuniones.length ? c.realEn(estado.reunion) : 0;
     const desv = Math.round((real - prog) * 10) / 10;
     const fecha = estado.reuniones.length ? fmtFecha(estado.reunion) : 'sin reuniones de seguimiento';
     // Cada título de proceso queda en la misma hoja que el comienzo de su tabla
@@ -803,8 +806,9 @@ async function exportarPDF() {
       ['Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? css('--peligro') : css('--verde')],
       ['Índice', prog > 0 ? (real / prog).toFixed(2) : '—', css('--navy')],
     ]);
-    if (c && estado.reuniones.length) {
-      cuerpo += `<h2>Curva S</h2><img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain">`;
+    if (conCurva) {
+      cuerpo += `<h2>Curva S</h2><p style="margin:2px 0 6px;font-size:11px;color:#555555">${c.items.length} ítems con fechas programadas · franja ${fmtFecha(c.desde)} – ${fmtFecha(c.hasta)}${c.sinFechas ? ` · ${c.sinFechas} sin fechas no entran en la curva` : ''}</p>`;
+      cuerpo += `<img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain">`;
       cuerpo += tablaPDF([
         { titulo: 'Fecha rev.', valor: x => fmtFecha(x.f), fecha: true }, { titulo: '% Programado', valor: x => `${x.p}%`, num: true },
         { titulo: '% Real', valor: x => `${x.r}%`, num: true },
