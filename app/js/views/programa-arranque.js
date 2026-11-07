@@ -868,7 +868,7 @@ async function exportarPDF({ soloDatos = false } = {}) {
           lista_por_vencer: apl.filter(i => estadoDe(i.item_codigo) === 'por_vencer').map(fila) },
       };
     }
-    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion() });
+    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo: nombreArchivoPA(fecha) });
   } finally {
     estado.reunion = guardado.reunion;
     Object.assign(filtros, guardado.filtros);
@@ -907,7 +907,7 @@ async function enviarPorCorreo() {
   if (!d) return;
   ok('Preparando el PDF y enviando…');
   const { generarArchivoPDF } = await import('../services/pdf.js');
-  const archivo = `CR-PG-SGP-01-F1 Programa de Arranque ${p.codigo || ''} ${informe.fecha.replaceAll('/', '-')}`;
+  const archivo = nombreArchivoPA(informe.fecha);
   const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
   const r = await api.enviarCorreo({
     proyecto_id: estado.proyId, para: d.para, copia: !!d.copia, asunto: d.asunto, mensaje: d.mensaje || '',
@@ -915,6 +915,14 @@ async function enviarPorCorreo() {
     pdf, pdf_nombre: `${archivo}.pdf`, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
   });
   ok(`Correo enviado a ${r.enviados} miembro${r.enviados === 1 ? '' : 's'} del proyecto.`);
+}
+
+/** Nombre del PDF (q48): Proyecto_Programa de arranque_DD-MM-AAAA (fecha del avance) */
+function nombreArchivoPA(fecha) {
+  const p = proyecto(estado.proyId) || {};
+  const proy = [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
+  const f = /^\d{2}\/\d{2}\/\d{4}$/.test(fecha) ? fecha.replaceAll('/', '-') : fmtFecha(hoy()).replaceAll('/', '-');
+  return `${proy}_Programa de arranque_${f}`.replace(/[\\/:*?"<>|]+/g, ' ');
 }
 
 /** Mensaje inicial del correo (editable): datos del proyecto y estado del programa de arranque (q46) */

@@ -2,7 +2,7 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, on, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
+import { store, on, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
@@ -232,16 +232,6 @@ const REPORTES = [
       ];
       return [...grupos.keys()].sort((a, b) => orden.indexOf(a) - orden.indexOf(b)).map(e =>
         `<h2>${esc(textoEstado('estados_proyecto', e) || e)} · ${grupos.get(e).length}</h2>` + tablaPDF(cols, grupos.get(e))).join('');
-    } },
-  { grupo: 'Configuración', id: 'servicios', staff: true, titulo: 'CET / Servicios', filtros: [], orientacion: 'portrait',
-    async generar() {
-      const vals = valoresLista('servicios', { inactivos: true }).sort((a, b) => String(proyecto(a.extra?.proyecto_id)?.codigo || '~').localeCompare(String(proyecto(b.extra?.proyecto_id)?.codigo || '~')));
-      return tablaPDF([
-        { titulo: 'Proyecto', ancho: 230, valor: v => (proyecto(v.extra?.proyecto_id) ? `${proyecto(v.extra.proyecto_id).codigo} · ${proyecto(v.extra.proyecto_id).nombre_corto}` : '') },
-        { titulo: 'CET', ancho: 100, valor: v => v.codigo || '' },
-        { titulo: 'Servicio', ancho: 260, valor: v => v.valor },
-        { titulo: 'Activo', ancho: 60, valor: v => (v.activo === false ? 'No' : 'Sí') },
-      ], vals);
     } },
   { grupo: 'Configuración', id: 'equipo', staff: true, titulo: 'Usuarios y roles (con organigrama)', filtros: [], orientacion: 'landscape',
     async generar() {

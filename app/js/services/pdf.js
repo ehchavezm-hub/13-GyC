@@ -15,6 +15,11 @@ export function nombreArchivo(reporte, d = new Date()) {
   return `GT-LPS_${limpio(store.usuario?.nombre || 'Usuario')}_${limpio(reporte)}_${fecha}`;
 }
 
+/** Quita lo que Windows no admite en un nombre de archivo (\\ / : * ? " < > |) y los espacios de más */
+export function limpiarNombre(t) {
+  return String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+}
+
 export function nombreProyectoActual() {
   return store.proyectoSel ? nombreProyecto(store.proyectoSel) : store.nivelSel ? nombreSeleccion() : 'Todos los proyectos';
 }
@@ -75,13 +80,13 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
  * Abre la presentación preliminar de un PDF (igual a la del módulo Reportes): papel A0–A6, orientación,
  * "Todo en 1 hoja", nombre del archivo y Guardar PDF. La usan todos los botones PDF de la aplicación.
  */
-export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto } = {}) {
+export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto, archivo: archivoPropuesto } = {}) {
   document.querySelector('.vista-pdf')?.remove();
   let pref = { papel: 'A4', unaHoja: false };
   try { pref = { ...pref, ...JSON.parse(localStorage.getItem('gyc-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
   if (!PAPELES[pref.papel]) pref.papel = 'A4';
   const estado = { orientacion };
-  const archivo = nombreArchivo(modulo);
+  const archivo = archivoPropuesto ? limpiarNombre(archivoPropuesto) : nombreArchivo(modulo);
   const capa = document.createElement('div');
   capa.className = 'vista-pdf';
   capa.innerHTML = `<div class="vista-pdf-caja reportes-vista" role="dialog" aria-label="Presentación preliminar">
@@ -104,7 +109,16 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
     capa.querySelectorAll('[data-ori]').forEach(b => b.classList.toggle('activo', b.dataset.ori === estado.orientacion));
     marco.srcdoc = documentoReporte(modulo, contenidoHTML, { papel, orientacion: estado.orientacion, unaHoja, proyectoTexto, archivo });
   };
-  const cerrar = () => { capa.remove(); removeEventListener('keydown', tecla); removeEventListener('hashchange', cerrar); };
+  // Chrome propone como nombre del PDF el título de la pestaña: se fija desde que se abre la vista previa (no justo
+  // antes de imprimir, cuando a veces todavía no lo ha tomado) y se restituye al cerrar.
+  const tituloApp = document.title;
+  const entrada = capa.querySelector('[data-o="archivo"]');
+  const nombrePDF = () => limpiarNombre((entrada.value || archivo).replace(/\.pdf$/i, '')) || archivo;
+  const fijarTitulo = () => { document.title = nombrePDF(); try { marco.contentDocument.title = nombrePDF(); } catch { /* aún cargando */ } };
+  entrada.addEventListener('input', fijarTitulo);
+  marco.addEventListener('load', fijarTitulo);
+  fijarTitulo();
+  const cerrar = () => { capa.remove(); document.title = tituloApp; removeEventListener('keydown', tecla); removeEventListener('hashchange', cerrar); };
   const tecla = e => { if (e.key === 'Escape') cerrar(); };
   addEventListener('keydown', tecla);
   addEventListener('hashchange', cerrar);   // al ir a otra pantalla se cierra la vista previa
@@ -113,13 +127,7 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   capa.querySelectorAll('[data-ori]').forEach(b => { b.onclick = () => { estado.orientacion = b.dataset.ori; pintar(); }; });
   capa.querySelectorAll('[data-o="papel"], [data-o="unaHoja"]').forEach(x => { x.onchange = pintar; });
   capa.querySelector('[data-a="pdf"]').onclick = () => {
-    // El navegador propone como nombre del PDF el título de la página principal
-    const nombre = (capa.querySelector('[data-o="archivo"]').value || archivo).replace(/\.pdf$/i, '');
-    const tituloApp = document.title;
-    marco.contentDocument.title = nombre; document.title = nombre;
-    const restaurar = () => { document.title = tituloApp; };
-    marco.contentWindow.addEventListener('afterprint', restaurar, { once: true });
-    setTimeout(restaurar, 60000);
+    fijarTitulo();
     marco.contentWindow.focus(); marco.contentWindow.print();
   };
   pintar();
