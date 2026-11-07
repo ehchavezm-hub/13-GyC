@@ -142,8 +142,8 @@ function cuerpoCorreo({ yo, proyecto, r, mensaje, conCurva, enlace }) {
       <div style="color:#555555;font-size:13px;margin-bottom:12px">Avance al ${esc(r.fecha || '')} · enviado por ${esc(yo.nombre || '')}</div>
       ${mensaje ? `<p style="white-space:pre-wrap;font-size:14px;line-height:1.5;margin:0 0 14px">${esc(mensaje)}</p>` : ''}
       <table cellpadding="0" cellspacing="6" style="border-collapse:separate;width:100%"><tr>
-        ${kpi('Avance', `${num(r.avance)}%`, '#E8762B')}${kpi('Programado', `${num(r.programado)}%`, '#4E79A7')}
-        ${kpi('Real', `${num(r.real)}%`, '#E8762B')}${kpi('Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? '#E74C3C' : '#59A14F')}
+        ${kpi('Avance', `${num(r.avance)}%`, '#E8762B')}${kpi('Programado (con fechas)', `${num(r.programado)}%`, '#4E79A7')}
+        ${kpi('Real (con fechas)', `${num(r.real)}%`, '#E8762B')}${kpi('Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? '#E74C3C' : '#59A14F')}
       </tr><tr>
         ${kpi('Terminados', `${num(r.terminados)}/${num(r.aplican)}`, '#59A14F')}${kpi('Atrasados', String(num(r.atrasados)), '#E74C3C')}
         ${kpi('Por vencer', String(num(r.por_vencer)), '#F28E2B')}${kpi('Índice', r.indice == null ? '—' : String(r.indice), '#003366')}

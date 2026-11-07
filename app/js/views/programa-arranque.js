@@ -786,10 +786,12 @@ async function exportarPDF({ soloDatos = false, tipo = (!soloDatos && estado.mod
   const def = tipo === 'definicion';
   const { imprimirPDF, tablaPDF, kpisPDF } = await import('../services/pdf.js');
   let curvaPng = null;
-  // Todo el programa (sin filtros) a la fecha de la última reunión registrada
+  // Todo el programa (sin filtros). Fecha: la reunión elegida en Seguimiento (lo que se ve es lo que se imprime y se
+  // envía, q75); desde Definición o Curva S, la última reunión registrada
   const guardado = { reunion: estado.reunion, filtros: { ...filtros } };
   Object.assign(filtros, { texto: '', proceso: '', resp: '', aplica: '', estado: '' });
-  estado.reunion = estado.reuniones.at(-1) || estado.reunion;
+  const elegida = estado.modo === 'seguimiento' && estado.reuniones.includes(estado.reunion);
+  estado.reunion = elegida ? estado.reunion : (estado.reuniones.at(-1) || estado.reunion);
   try {
     const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
     const items = estado.items, apl = items.filter(i => aplica(i.item_codigo)), n = apl.length || 1;
@@ -822,14 +824,14 @@ async function exportarPDF({ soloDatos = false, tipo = (!soloDatos && estado.mod
       cuerpo += `<h2>Definición del Programa de Arranque · al ${fmtFecha(hoy())}</h2>` + kpisPDF([
         ['Ítems', String(items.length), css('--navy')], ['Aplican', String(apl.length), css('--verde')],
         ['N/A', String(items.length - apl.length), css('--plata')], ['Con responsable', `${conResp}/${apl.length}`, css('--azul')],
-        ['Con fechas', `${conFechas}/${apl.length}`, css('--azul')], ['Sin definir', String(sinDefinir), css('--amarillo')],
+        ['Con fechas', `${conFechas}/${apl.length}`, css('--azul')], ['Por completar (sin resp. o fechas)', String(sinDefinir), css('--amarillo')],
       ]);
     } else cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
       ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
       ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
       ['En curso', String(cuenta('en_curso')), css('--azul')], ['Sin definir', String(cuenta('sin_definir')), css('--plata')],
       ['N/A', String(items.length - apl.length), css('--plata')],
-      ['Programado', `${prog}%`, css('--azul')], ['Real', `${real}%`, css('--naranja')],
+      ['Programado (con fechas)', `${prog}%`, css('--azul')], ['Real (con fechas)', `${real}%`, css('--naranja')],
       ['Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? css('--peligro') : css('--verde')],
       ['Índice', prog > 0 ? (real / prog).toFixed(2) : '—', css('--navy')],
     ]);
@@ -944,7 +946,7 @@ async function enviarPorCorreo() {
   // El resumen se calcula antes de abrir el formulario: con él se arma el mensaje por defecto (q46)
   const informe = await exportarPDF({ soloDatos: true });
   const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
-  const d = await pedirDatos({
+  const pedido = pedirDatos({
     titulo: 'Enviar por correo', texto: 'Preparar correo', ancho: 640,
     antes: `Se preparará el correo en <b>Outlook</b>, desde el remitente elegido (debe abrirse en el Outlook de esa cuenta); quedará
       en sus Enviados. Incluye el resumen, la Curva S y el programa completo en PDF. Solo a miembros del proyecto.`,
@@ -972,6 +974,15 @@ async function enviarPorCorreo() {
       }
     },
   });
+  // q75: al cambiar el remitente, la firma del mensaje cambia con él (si no se editó a mano)
+  const formCorreo = [...document.querySelectorAll('.modal form')].at(-1);
+  formCorreo?.elements.de?.addEventListener('change', e => {
+    const ta = formCorreo.elements.mensaje, antes = remitentes.find(u => u.id === formCorreo.dataset.firma)?.nombre ?? remitentes.find(u => u.id === remDefecto)?.nombre;
+    const nuevo = remitentes.find(u => u.id === e.target.value)?.nombre || '';
+    if (ta && antes && ta.value.trimEnd().endsWith(antes)) ta.value = ta.value.trimEnd().slice(0, -antes.length) + nuevo;
+    formCorreo.dataset.firma = e.target.value;
+  });
+  const d = await pedido;
   if (!d) return;
   ok(d.abrir === 'web' ? 'Outlook web abierto; preparando el PDF para adjuntar…' : 'Preparando el borrador para Outlook…');
   const { generarArchivoPDF } = await import('../services/pdf.js');
@@ -1026,7 +1037,7 @@ function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] })
   const parte = (a, disp) => [`Content-Type: ${a.tipo}; name="${enc(a.nombre).replace(/"/g, '')}"`, 'Content-Transfer-Encoding: base64',
     ...(a.cid ? [`Content-ID: <${a.cid}>`] : []), `Content-Disposition: ${disp}; ${nombreArch(a.nombre)}`, '', lineas(a.base64.replace(/\s/g, ''))].join('\r\n');
   const cab = [
-    ...(de ? [`From: ${enc(nombre || '')} <${de}>`] : []),
+    ...(de ? [`From: ${enc(String(nombre || '').replace(/[\r\n"<>]/g, ' ').trim())} <${String(de).replace(/[\r\n<>]/g, '')}>`] : []),
     `To: ${para.join(', ')}`, ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
     `Subject: ${enc(asunto)}`, 'X-Unsent: 1', 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${m}"`, '',
   ];
@@ -1067,7 +1078,8 @@ function mensajePorDefecto(p, r, fecha, firma = store.usuario) {
       return datos.length ? ['Datos del proyecto', ...datos, ''] : [];
     })(),
     'Estado del Programa de Arranque',
-    `• Avance: ${r.avance}% · Programado: ${r.programado}% · Real: ${r.real}% · Desviación: ${desv}${r.indice != null ? ` · Índice: ${r.indice}` : ''}`,
+    `• Avance: ${r.avance}% (todas las actividades que aplican)`,
+    `• Con fechas programadas: Programado ${r.programado}% · Real ${r.real}% · Desviación ${desv}${r.indice != null ? ` · Índice ${r.indice}` : ''}`,
     `• Actividades terminadas: ${r.terminados} de ${r.aplican} que aplican`,
     `• Atrasadas: ${r.atrasados} · Por vencer: ${r.por_vencer}`,
     '',
