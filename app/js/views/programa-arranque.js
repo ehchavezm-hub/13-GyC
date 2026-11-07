@@ -794,9 +794,10 @@ async function exportarPDF() {
     const real = conCurva && estado.reuniones.length ? c.realEn(estado.reunion) : 0;
     const desv = Math.round((real - prog) * 10) / 10;
     const fecha = estado.reuniones.length ? fmtFecha(estado.reunion) : 'sin reuniones de seguimiento';
-    // Cada título de proceso queda en la misma hoja que el comienzo de su tabla
-    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 14px; }
-      .pa-pdf-proc { break-inside: avoid-page; } .pa-pdf-proc table { break-before: avoid; }</style>`;
+    // Todo seguido, como en la vista preliminar: cambia de hoja solo cuando se llena. Solo el gráfico no se parte y
+    // el título de un proceso no queda solo al pie de una hoja.
+    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; }
+      .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }</style>`;
     cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
       ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
       ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
@@ -808,7 +809,7 @@ async function exportarPDF() {
     ]);
     if (conCurva) {
       cuerpo += `<h2>Curva S</h2><p style="margin:2px 0 6px;font-size:11px;color:#555555">${c.items.length} ítems con fechas programadas · franja ${fmtFecha(c.desde)} – ${fmtFecha(c.hasta)}${c.sinFechas ? ` · ${c.sinFechas} sin fechas no entran en la curva` : ''}</p>`;
-      cuerpo += `<img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain">`;
+      cuerpo += `<div class="pa-pdf-graf"><img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain"></div>`;
       cuerpo += tablaPDF([
         { titulo: 'Fecha rev.', valor: x => fmtFecha(x.f), fecha: true }, { titulo: '% Programado', valor: x => `${x.p}%`, num: true },
         { titulo: '% Real', valor: x => `${x.r}%`, num: true },
@@ -818,17 +819,17 @@ async function exportarPDF() {
     }
     const COLOR_ESTADO = { terminado: '--verde', atrasado: '--peligro', por_vencer: '--arena', en_curso: '--azul', por_iniciar: '--gris-texto', sin_definir: '--gris-texto-2', no_aplica: '--gris-texto-2' };
     const columnas = [
-      { titulo: 'It', valor: i => i.item_codigo, ancho: 28 },
+      { titulo: 'It', valor: i => i.item_codigo, ancho: 36 },
       { titulo: 'Area', valor: i => i.area_lider, ancho: 80 },
       { titulo: 'Descripción de actividad', valor: i => i.descripcion, ancho: 260 },
-      { titulo: 'Aplica', valor: i => (aplica(i.item_codigo) ? 'Si' : 'N/A'), ancho: 36 },
+      { titulo: 'Aplica', valor: i => (aplica(i.item_codigo) ? 'Si' : 'N/A'), ancho: 48 },
       { titulo: 'Resp.', valor: i => respDe(i.item_codigo) || '', ancho: 80 },
       { titulo: 'Inicio prog.', valor: i => (det(i.item_codigo).inicio_programado ? fmtFecha(det(i.item_codigo).inicio_programado) : ''), fecha: true },
       { titulo: 'Fin prog.', valor: i => (det(i.item_codigo).fin_programado ? fmtFecha(det(i.item_codigo).fin_programado) : ''), fecha: true },
       { titulo: 'Fecha rev.', valor: i => (segVigente(i.item_codigo)?.fecha_revision ? fmtFecha(segVigente(i.item_codigo).fecha_revision) : ''), fecha: true },
-      { titulo: '% Ava. Acu.', valor: i => (aplica(i.item_codigo) ? `${avanceDe(i.item_codigo)}%` : ''), num: true, ancho: 46 },
+      { titulo: '% Ava. Acu.', valor: i => (aplica(i.item_codigo) ? `${avanceDe(i.item_codigo)}%` : ''), num: true, ancho: 58 },
       { titulo: 'Fin re-prog.', valor: i => (segVigente(i.item_codigo)?.fin_reprogramado ? fmtFecha(segVigente(i.item_codigo).fin_reprogramado) : ''), fecha: true },
-      { titulo: 'Estado', valor: i => ESTADOS[estadoDe(i.item_codigo)].txt, ancho: 54, estilo: i => `color:${css(COLOR_ESTADO[estadoDe(i.item_codigo)])};font-weight:700` },
+      { titulo: 'Estado', valor: i => ESTADOS[estadoDe(i.item_codigo)].txt, ancho: 72, estilo: i => `color:${css(COLOR_ESTADO[estadoDe(i.item_codigo)])};font-weight:700` },
       { titulo: 'Comentarios', valor: i => segVigente(i.item_codigo)?.comentarios || det(i.item_codigo).comentarios || '', ancho: 140 },
     ];
     for (const proceso of [...new Set(items.map(i => i.proceso))]) {
@@ -836,8 +837,7 @@ async function exportarPDF() {
       const prom = a.length ? Math.round(a.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / a.length) : 0;
       const tabla = tablaPDF(columnas, del);
       const titulo = `<h3>${esc(proceso)} · ${a.filter(i => avanceDe(i.item_codigo) >= 100).length}/${a.length} terminados · ${prom}%</h3>`;
-      // Procesos cortos: título y tabla juntos; los largos pueden partirse, pero el título no queda solo al pie
-      cuerpo += del.length <= 12 ? `<div class="pa-pdf-proc">${titulo}${tabla}</div>` : titulo + tabla;
+      cuerpo += titulo + tabla;
     }
     imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion() });
   } finally {
