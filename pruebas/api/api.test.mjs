@@ -363,5 +363,14 @@ test('enviar por correo: solo administradores del proyecto y solo a sus miembros
     // Sin servicio configurado, el aviso es claro
     usarEnvio(null);
     await assert.rejects(llamar(correo, 'user_admin', { ...base, para: ['user_lider'] }), /RESEND_API_KEY/);
+    // Modo borrador (Outlook): no envía ni requiere configuración; devuelve destinatarios y cuerpo validados
+    const b = await llamar(correo, 'user_admin', { ...base, modo: 'borrador', para: ['user_lider'], con_curva: true });
+    assert.equal(b.borrador, true);
+    assert.deepEqual(b.para, ['lider@ejemplo.com']);
+    assert.equal(b.asunto, 'Avance X');
+    assert.ok(b.html.includes('cid:curva-s') && b.html.includes('&lt;b&gt;x&lt;/b&gt;'));
+    assert.equal(enviados.length, 1);                                            // no salió ningún correo
+    await assert.rejects(llamar(correo, 'user_admin', { ...base, modo: 'borrador', para: ['user_dueno'] }), /miembros activos del proyecto/);
+    await assert.rejects(llamar(correo, 'user_lider', { ...base, modo: 'borrador', para: ['user_lider'] }), /administradores del proyecto/);
   } finally { usarEnvio(null); }
 });
