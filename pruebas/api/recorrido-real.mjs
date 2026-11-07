@@ -119,6 +119,11 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   await pagina.waitForTimeout(300);
   if (!(await pagina.locator('.pa-ficha .pa-linea li').count())) errores.push('programa de arranque: la ficha no muestra el historial');
   await pagina.keyboard.press('Escape');
+  // Curva S (q32): pestaña a la derecha de "+ Reunión", con su gráfico y resumen
+  await pagina.locator('[data-modo="curva"]').click();
+  await pagina.waitForTimeout(1200);
+  if (!(await pagina.locator('.pa-curva canvas').count())) errores.push('curva S: no se dibujó el gráfico');
+  if (!(await pagina.locator('.pa-curva-res').innerText().catch(() => '')).includes('Programado')) errores.push('curva S: falta el resumen');
   await pagina.locator('[data-modo="definicion"]').click();
   // Aplica (lista Si / N/A): el ítem opcional 6 parte en N/A y se cambia a Si
   if (!(await pagina.locator('[data-item-row="6"] [data-campo="aplica"]').innerText()).includes('N/A')) errores.push('programa de arranque: el ítem opcional 6 no parte en N/A');
