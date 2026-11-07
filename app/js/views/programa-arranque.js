@@ -828,11 +828,12 @@ async function exportarPDF({ soloDatos = false } = {}) {
         { titulo: 'Índice', valor: x => (x.p > 0 ? (x.r / x.p).toFixed(2) : '—'), num: true },
       ], c.reuniones.slice().reverse());
     }
-    // Anchos fijos (mm, A4 horizontal ≈ 277 mm útiles): las 4 fechas iguales y mínimas; la descripción toma el resto
-    const ANCHO_MM = { It: 7, Area: 24, Aplica: 10, 'Resp.': 21, 'Inicio prog.': 15.5, 'Fin prog.': 15.5, 'Fecha rev.': 15.5,
-      '% Ava. Acu.': 11, 'Fin re-prog.': 15.5, Estado: 15, Comentarios: 36 };
+    // Anchos (q41, q62): las 4 fechas y Resp. iguales y mínimos (los nombres en dos líneas); Comentarios proporcional a la
+    // hoja; la descripción toma todo el resto. Sirve en horizontal (277 mm útiles) y en vertical (190 mm) sin salirse.
+    const ANCHO = { It: '6mm', Area: '22mm', Aplica: '10mm', 'Resp.': '15.5mm', 'Inicio prog.': '15.5mm', 'Fin prog.': '15.5mm',
+      'Fecha rev.': '15.5mm', '% Ava. Acu.': '10.5mm', 'Fin re-prog.': '15.5mm', Estado: '13mm', Comentarios: '12%' };
     const tablaPrograma = (cols, filas) => `<table class="pa-pdf-prog"><colgroup>${cols.map(c =>
-        `<col${ANCHO_MM[c.titulo] ? ` style="width:${ANCHO_MM[c.titulo]}mm"` : ''}>`).join('')}</colgroup>
+        `<col${ANCHO[c.titulo] ? ` style="width:${ANCHO[c.titulo]}"` : ''}>`).join('')}</colgroup>
       <thead><tr>${cols.map(c => `<th class="${c.num ? 'n' : ''}">${esc(c.titulo)}</th>`).join('')}</tr></thead>
       <tbody>${filas.map(f => `<tr>${cols.map(c => `<td class="${c.fecha ? 'f' : c.num ? 'n' : ''}"${c.estilo ? ` style="${esc(c.estilo(f))}"` : ''}>${esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const COLOR_ESTADO = { terminado: '--verde', atrasado: '--peligro', por_vencer: '--arena', en_curso: '--azul', por_iniciar: '--gris-texto', sin_definir: '--gris-texto-2', no_aplica: '--gris-texto-2' };
