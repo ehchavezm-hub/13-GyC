@@ -827,6 +827,6 @@ body.pa-redimensionando, body.pa-redimensionando * { cursor: col-resize !importa
 .acta-qr-grande { width: min(560px, 80vh); margin: 0 auto; text-align: center; }
 .acta-firma img { max-height: 42px; max-width: 140px; display: block; }
 .acta-acuerdos textarea, .acta-acuerdos input, .acta-acuerdos select { width: 100%; font: inherit; padding: 5px 7px; border: 1px solid var(--borde); border-radius: 6px; background: #FFFFFF; }
-.acta-acuerdos textarea { resize: vertical; min-height: 38px; }
+.acta-acuerdos textarea { resize: none; min-height: 38px; overflow: hidden; line-height: 1.4; }
 .acta-acuerdos tr.guardado td { background: color-mix(in srgb, var(--verde) 12%, #FFFFFF); transition: background .3s; }
 .acta-log td.acta-acc { white-space: nowrap; text-align: right; }
