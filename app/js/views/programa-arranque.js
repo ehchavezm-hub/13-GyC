@@ -27,13 +27,13 @@ let estado = {};
 // del encabezado, como en Excel; doble clic lo restablece. Se recuerda por vista en este navegador.
 const COLUMNAS = {
   definicion: [
-    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'area', txt: 'Area', w: 150 },
+    { k: 'cod', txt: 'It', w: 42 }, { k: 'area', txt: 'Area', w: 150 },
     { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
     { k: 'ini', txt: 'Inicio prog.', w: 104, cls: 'def' }, { k: 'fin', txt: 'Fin prog.', w: 104, cls: 'def' },
     { k: 'com', txt: 'Comentarios', w: 220, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
   seguimiento: [
-    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
+    { k: 'cod', txt: 'It', w: 42 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
     { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'avant', txt: '% Ava. ant.', w: 92, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 150, cls: 'seg' },
     { k: 'com', txt: 'Comentarios', w: 200, cls: 'seg' }, { k: 'finr', txt: 'Fin re-prog.', w: 100, cls: 'seg' },
     { k: 'est', txt: 'Estado', w: 120 }, { k: 'mas', txt: '', w: 44, fija: true },
