@@ -4,7 +4,7 @@ import { query } from './_lib/db.js';
 import { verificarAuth, AuthError, leerCuerpo, esGestor, esAdmin, esSuper, habilitado, GESTORES } from './_lib/auth.js';
 import { puede, eliminarUsuario } from './_lib/usuarios.js';
 import { validarTabla, validarColumna, validarOrden, OPERADORES, ESCRIBE_CONSULTA, alcance } from './_lib/whitelist.js';
-import { columnas, limpiarFila, prepararValor } from './_lib/esquema.js';
+import { columnas, limpiarFila, prepararValor, olvidarEsquema } from './_lib/esquema.js';
 
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
@@ -98,7 +98,19 @@ async function ejecutarAccion(accion, tabla, params, perfil) {
     if (['update', 'remove'].includes(accion)) throw new Error('Use updateWhere / removeWhere con proyecto_id y usuario_id.');
     await verificarMiembrosProyecto(accion, params, perfil);
   }
-  const cols = await columnas(tabla);
+  let cols = await columnas(tabla);
+  // Columnas que la base no tiene: se vuelve a leer el esquema (p. ej. recién se ejecutó una migración en Neon)
+  // y, si siguen sin existir, se avisa en lugar de descartarlas en silencio (el dato no se guardaría)
+  if (accion !== 'list') {
+    const filas = Array.isArray(params.data) ? params.data : params.data ? [params.data] : [];
+    const faltan = () => [...new Set(filas.flatMap(f => Object.keys(f || {})))].filter(k => !k.startsWith('_') && !cols.has(k));
+    if (faltan().length) {
+      olvidarEsquema();
+      cols = await columnas(tabla);
+      const f = faltan();
+      if (f.length) throw new Error(`La base no tiene ${f.length > 1 ? 'las columnas' : 'la columna'} ${f.map(x => `"${x}"`).join(', ')} en ${tabla}. Ejecute la última migración en el SQL Editor de Neon.`);
+    }
+  }
   switch (accion) {
     case 'list':        return accionList(tabla, cols, params, perfil);
     case 'insert':      return accionInsert(tabla, cols, params, perfil);

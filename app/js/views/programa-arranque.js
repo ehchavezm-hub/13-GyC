@@ -26,8 +26,8 @@ let estado = {};
 // del encabezado, como en Excel; doble clic lo restablece. Se recuerda por vista en este navegador.
 const COLUMNAS = {
   definicion: [
-    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'area', txt: 'Area', w: 150 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' },
-    { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
+    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'area', txt: 'Area', w: 150 },
+    { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
     { k: 'ini', txt: 'Inicio prog.', w: 104, cls: 'def' }, { k: 'fin', txt: 'Fin prog.', w: 104, cls: 'def' },
     { k: 'com', txt: 'Comentarios', w: 220, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
@@ -154,7 +154,6 @@ function usuariosProyecto() {
   return { lista: (delProyecto.length ? delProyecto : activos).sort((a, b) => a.nombre.localeCompare(b.nombre)), soloProyecto: delProyecto.length > 0 };
 }
 
-const iniciales = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 const barra = (pct, cls = '') => `<span class="pa-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>`;
 
 // ── Indicadores (solo los ítems que aplican) ──────────────────────────────────
@@ -170,8 +169,8 @@ function pintarKpis() {
     <span class="pa-kpi-linea"><span class="pa-kpi-val">${valor}</span><span class="pa-kpi-lbl">${etiqueta}</span></span>${pie ? `<span class="pa-kpi-pie">${pie}</span>` : ''}</button>`;
   const caja = estado.wrap.querySelector('[data-kpis]');
   caja.innerHTML = `<div class="pa-kpi pa-kpi-avance">
-      <span class="pa-kpi-linea"><span class="pa-kpi-val">${promedio}%</span><span class="pa-kpi-lbl">Avance del programa · al ${fmtFecha(estado.reunion)}</span></span>${barra(promedio, 'grande')}
-      <span class="pa-kpi-pie">${cuenta('terminado')} de ${items.length} ítems que aplican terminados · ${noAplican} N/A</span></div>
+      <span class="pa-kpi-linea"><span class="pa-kpi-val">${promedio}%</span><span class="pa-kpi-lbl">Avance al ${fmtFecha(estado.reunion)}</span></span>${barra(promedio, 'grande')}
+      <span class="pa-kpi-pie">${cuenta('terminado')}/${items.length} terminados · ${noAplican} N/A</span></div>
     ${tarjeta('atrasado', cuenta('atrasado'), 'Atrasados', 'fin vencido sin 100%', 'mal')}
     ${tarjeta('por_vencer', cuenta('por_vencer'), 'Por vencer', `próximos ${PROXIMOS_DIAS} días`, 'aviso')}
     ${tarjeta('en_curso', cuenta('en_curso'), 'En curso', 'con avance', 'curso')}
@@ -199,12 +198,12 @@ function pintarBarra() {
     </div>
     ${seg ? `<label class="pa-reunion">Reunión del
         <select data-f="reunion">${fechas.map(f => `<option value="${f}"${f === estado.reunion ? ' selected' : ''}>${fmtFecha(f)}${estado.reuniones.includes(f) ? '' : ' (nueva)'}</option>`).join('')}</select></label>
-      ${estado.editable ? '<button class="btn btn-sm" data-a="nueva">＋ Nueva reunión</button>' : ''}`
-      : '<span class="pa-nota">Se completa en la reunión de definición.</span>'}
+      ${estado.editable ? '<button class="btn btn-sm" data-a="nueva" title="Nueva reunión de seguimiento">＋ Reunión</button>' : ''}`
+      : '<span class="pa-nota">Reunión de definición</span>'}
     <span class="flex"></span>
-    <input type="search" class="pa-buscar" data-f="texto" placeholder="Buscar ítem o actividad…" value="${esc(filtros.texto)}">
-    <select data-f="proceso"><option value="">Todos los procesos</option>${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
-    <select data-f="resp"><option value="">Todos los responsables</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin responsable</option>
+    <input type="search" class="pa-buscar" data-f="texto" placeholder="Buscar…" value="${esc(filtros.texto)}">
+    <select data-f="proceso"><option value="">Proceso: todos</option>${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
+    <select data-f="resp"><option value="">Resp.: todos</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin responsable</option>
       ${lista.map(u => `<option value="${esc(u.id)}"${u.id === filtros.resp ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select>
     <select data-f="aplica" title="Aplica (lista de aplicabilidad)">
       <option value="si"${filtros.aplica === 'si' ? ' selected' : ''}>Aplica: Si</option>
@@ -266,14 +265,15 @@ function pintarTabla() {
     const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c), apl = aplica(c);
     const clase = apl ? '' : 'na';
     const desc = `<td class="c-act"><div class="pa-desc">${esc(i.descripcion)}</div>${seg ? `<div class="pa-meta">${esc(i.area_lider)}${apl ? '' : '<span class="pa-na">N/A</span>'}</div>` : ''}</td>`;
-    const resp = `<td class="c-resp"${ed} data-campo="responsable_id">${r ? `<span class="pa-avatar">${esc(iniciales(r))}</span><span class="pa-resp-n">${esc(r)}</span>` : `<span class="pa-vacio">${apl ? 'Asignar' : ''}</span>`}</td>`;
+    const resp = `<td class="c-resp"${ed} data-campo="responsable_id">${r ? `<span class="pa-resp-n">${esc(r)}</span>` : `<span class="pa-vacio">${apl ? 'Asignar' : ''}</span>`}</td>`;
     const mas = `<td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha del ítem e historial">›</button></td>`;
     if (!seg) {
       return `<tr data-item-row="${esc(c)}" class="${clase}">
         <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>
         <td class="c-area">${esc(i.area_lider)}</td>
+        ${desc}
         <td class="c-apl"${ed} data-campo="aplica"><span class="pa-aplica ${aplicaDe(c)}">${aplicaDe(c) === 'si' ? 'Si' : 'N/A'}</span></td>
-        ${desc}${resp}
+        ${resp}
         <td class="c-fecha"${ed} data-campo="inicio_programado">${d.inicio_programado ? fmtFecha(d.inicio_programado) : '<span class="pa-vacio">—</span>'}</td>
         <td class="c-fecha"${ed} data-campo="fin_programado">${d.fin_programado ? fmtFecha(d.fin_programado) : '<span class="pa-vacio">—</span>'}</td>
         <td class="c-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>${mas}</tr>`;

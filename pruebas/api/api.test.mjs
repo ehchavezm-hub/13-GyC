@@ -121,7 +121,7 @@ test('catálogo como lo pide store.cargarCatalogo()', async () => {
 test('actividades: columnas generadas, jsonb, cadenas vacías y filtros', async () => {
   const [a] = await B.insert('actividades', {
     semana: lunes, responsable_id: 'user_lider', proyecto_id: ctx.proyecto, descripcion: 'Vaciado de losa',
-    hh_lu: 2, hh_ma: '3', hh_total: 99, extra: { color: 'rojo', lista: [1, 2] }, comprometida: true, cnc_id: '', columna_vieja: 'x',
+    hh_lu: 2, hh_ma: '3', hh_total: 99, extra: { color: 'rojo', lista: [1, 2] }, comprometida: true, cnc_id: '', _solo_interfaz: 'x',
   });
   assert.equal(a.hh_total, 5);                 // numeric → número (como PostgREST), no "5.00"
   assert.equal(a.semana, lunes);               // date → 'AAAA-MM-DD', no un timestamp
@@ -132,6 +132,8 @@ test('actividades: columnas generadas, jsonb, cadenas vacías y filtros', async 
   const r = await B.list('actividades', { eq: { responsable_id: 'user_lider' }, gte: { semana: lunes }, in: { estado: ['programado'] }, is: { cnc_id: null }, select: 'id,hh_total' });
   assert.equal(r.length, 1);
   assert.equal((await B.list('actividades', { in: { id: [] } })).length, 0);
+  // Una columna que la base no tiene (migración pendiente) se informa, no se descarta en silencio
+  await assert.rejects(B.update('actividades', a.id, { columna_inexistente: 1 }), /Ejecute la última migración/);
   const u = await B.update('actividades', a.id, { hh_mi: 1, comentario: '' });
   assert.equal(u.hh_total, 6);
   await assert.rejects(C.update('actividades', a.id, { hh_mi: 2 }), /solo consulta/);
