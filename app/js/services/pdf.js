@@ -291,10 +291,15 @@ export async function guardarPDF(boton, titulo, contenidoHTML, opciones) {
 
 export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = 'landscape', papel = 'A4', proyectoTexto, archivo, unaHoja = false, escala = 1.6, calidad = 0.82 } = {}) {
   const [a, b] = PAPELES[papel] || PAPELES.A4;
-  const [anchoMm] = orientacion === 'landscape' ? [b, a] : [a, b];
+  const [anchoMm, altoMm] = orientacion === 'landscape' ? [b, a] : [a, b];
+  const MARGEN = { izq: 10, der: 10, sup: 14, inf: 12 };              // mm (encabezado y pie van en los márgenes)
+  const utilMm = anchoMm - MARGEN.izq - MARGEN.der;
+  const utilPx = Math.round(utilMm * 96 / 25.4);
+  // El marco mide exactamente el ancho útil y no tiene barras de desplazamiento: así la captura empieza en el borde
+  // izquierdo del contenido y no se corta nada a la derecha (q70: en Windows la barra corría el contenido ~4 mm)
   const marco = document.createElement('iframe');
   marco.setAttribute('aria-hidden', 'true');
-  marco.style.cssText = `position:fixed;left:-20000px;top:0;width:${Math.ceil(anchoMm * 96 / 25.4) + 40}px;height:1200px;border:0;visibility:hidden`;
+  marco.style.cssText = `position:fixed;left:-20000px;top:0;width:${utilPx}px;height:1200px;border:0;visibility:hidden`;
   document.body.append(marco);
   try {
     await new Promise(ok => { marco.onload = ok; marco.srcdoc = documentoReporte(titulo, contenidoHTML, { papel, orientacion, proyectoTexto, archivo, unaHoja }); });
@@ -306,22 +311,43 @@ export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = '
       s.onload = ok; s.onerror = () => mal(new Error('No se pudo cargar el generador de PDF.'));
       doc.head.append(s);
     });
+    await doc.fonts?.ready?.catch?.(() => {});
     await new Promise(r => setTimeout(r, 150));
+    // Encabezado y pie: se leen del documento y se dibujan en TODAS las hojas (abajo, con jsPDF)
+    const enc = [...doc.querySelectorAll('.enc span')].map(x => x.textContent.trim());
+    const firma = doc.querySelector('.pie span')?.textContent.trim() || '';
+    doc.querySelector('.enc')?.remove();
     doc.querySelector('.pie')?.remove();
+    const estilo = doc.createElement('style');
+    estilo.textContent = 'html, body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; }';
+    doc.head.append(estilo);
     const hoja = doc.getElementById('hoja');
-    // La hoja mide exactamente el ancho útil (papel menos márgenes del PDF): nada se corta a la derecha
-    Object.assign(hoja.style, { zoom: 1, width: `${anchoMm - 16}mm`, minHeight: '0', padding: '0', margin: '0', boxShadow: 'none', boxSizing: 'border-box' });
+    Object.assign(hoja.style, { zoom: 1, width: `${utilPx}px`, minHeight: '0', padding: '0', margin: '0', boxShadow: 'none', boxSizing: 'border-box' });
     // Las opciones se crean dentro del marco: la librería valida con "instanceof Array" de su propio documento
     const opciones = marco.contentWindow.JSON.parse(JSON.stringify({
-      margin: [8, 8, 10, 8],
-      // Resolución suficiente para leer texto de 7,5 pt sin que el adjunto pase de ~1–1,5 MB
+      margin: [MARGEN.sup, MARGEN.der, MARGEN.inf, MARGEN.izq],
       image: { type: 'jpeg', quality: calidad },
-      html2canvas: { scale: escala, useCORS: true, backgroundColor: '#FFFFFF' },
+      html2canvas: { scale: escala, useCORS: true, backgroundColor: '#FFFFFF', scrollX: 0, scrollY: 0, x: 0, windowWidth: utilPx, width: utilPx },
       jsPDF: { unit: 'mm', format: papel.toLowerCase(), orientation: orientacion },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h3', '.pa-pdf-graf', '.kpi'] },
     }));
-    const uri = await marco.contentWindow.html2pdf().set(opciones).from(hoja).outputPdf('datauristring');
-    return String(uri).split(',')[1];
+    const pdf = await marco.contentWindow.html2pdf().set(opciones).from(hoja).toPdf().get('pdf');
+    const n = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= n; i++) {
+      pdf.setPage(i);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6); pdf.setTextColor(85, 85, 85);
+      const ySup = 8, yInf = altoMm - 6;
+      if (enc[0]) pdf.text(enc[0], MARGEN.izq, ySup);
+      if (enc[1]) pdf.text(enc[1], anchoMm / 2, ySup, { align: 'center' });
+      if (enc[2]) pdf.text(enc[2], anchoMm - MARGEN.der, ySup, { align: 'right' });
+      pdf.setDrawColor(224, 224, 224); pdf.setLineWidth(0.2);
+      pdf.line(MARGEN.izq, ySup + 1.6, anchoMm - MARGEN.der, ySup + 1.6);
+      pdf.line(MARGEN.izq, yInf - 3, anchoMm - MARGEN.der, yInf - 3);
+      pdf.setTextColor(119, 119, 119);
+      if (firma) pdf.text(firma, MARGEN.izq, yInf);
+      pdf.text(`Página ${i} de ${n}`, anchoMm - MARGEN.der, yInf, { align: 'right' });
+    }
+    return String(pdf.output('datauristring')).split(',')[1];
   } finally {
     marco.remove();
   }
