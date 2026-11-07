@@ -12,7 +12,7 @@ import { api, mensajeError } from '../data/api.js';
 import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre, esAdminProyecto } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, sumarDias, libExcel, libGraficos, normalizar } from '../core/util.js';
 import { icono } from '../ui/iconos.js';
-import { error as mostrarError, pedirDatos, ok, confirmar } from '../ui/ui.js';
+import { error as mostrarError, pedirDatos, ok, confirmar, modal } from '../ui/ui.js';
 import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
 const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin prog. = Inicio prog. + 90
@@ -891,8 +891,8 @@ async function enviarPorCorreo() {
   const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
   const d = await pedirDatos({
     titulo: 'Enviar por correo', texto: 'Preparar correo', ancho: 640,
-    antes: `Se preparará un <b>borrador en su Outlook</b>: saldrá desde su propio correo (<b>${esc(store.usuario.email || 'su correo')}</b>)
-      y quedará en sus Enviados. Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
+    antes: `Se preparará un <b>borrador para Outlook</b>: saldrá desde la cuenta de Outlook en la que lo abra (por ejemplo, su correo
+      corporativo) y quedará en sus Enviados. Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
     campos: [
       { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true, todos: true,
         options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
@@ -914,21 +914,51 @@ async function enviarPorCorreo() {
     resumen: informe.resumen, con_curva: !!informe.curvaPng, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
   });
   const eml = borradorEML({
-    de: r.de, nombre: r.nombre, para: r.para, cc: r.cc, asunto: r.asunto, html: r.html,
+    para: r.para, cc: r.cc, asunto: r.asunto, html: r.html,
     adjuntos: [
       ...(informe.curvaPng ? [{ nombre: 'curva-s.png', tipo: 'image/png', base64: informe.curvaPng.split(',')[1], cid: 'curva-s' }] : []),
       { nombre: `${archivo}.pdf`, tipo: 'application/pdf', base64: pdf },
     ],
   });
-  descargar(`${archivo}.eml`, new Blob([eml], { type: 'message/rfc822' }));
-  ok(`Borrador listo para ${r.para.length} miembro${r.para.length === 1 ? '' : 's'}: abra el archivo descargado (.eml), se abrirá en Outlook; revise y pulse Enviar.`, 12000);
+  const pdfBlob = () => new Blob([Uint8Array.from(atob(pdf), c => c.charCodeAt(0))], { type: 'application/pdf' });
+  // Dos formas, según el Outlook de quien envía (sin configuración ni intervención de TI en ninguna)
+  modal({
+    titulo: 'Correo listo para enviar', ancho: 600,
+    cuerpo: `<p style="margin:0 0 10px">Para <b>${r.para.length}</b> miembro${r.para.length === 1 ? '' : 's'} del proyecto. Saldrá desde la cuenta
+        de Outlook en la que lo abra y quedará en sus Enviados. Elija según el Outlook que use:</p>
+      <div class="pa-correo-opcion"><b>Outlook de escritorio</b>
+        <p>Se descarga un borrador. Ábralo (doble clic): se abre en Outlook con los destinatarios, el mensaje, la Curva S y el PDF adjunto. Revise y pulse <b>Enviar</b>.</p>
+        <button class="btn btn-primario" data-eml>⬇ Descargar borrador para Outlook</button></div>
+      <div class="pa-correo-opcion"><b>Outlook en el navegador (Microsoft 365)</b>
+        <p>Se abre un correo nuevo en Outlook web con los destinatarios, el asunto y el mensaje, y se descarga el PDF:
+          arrástrelo al correo y pulse <b>Enviar</b>.</p>
+        <button class="btn" data-web>↗ Abrir en Outlook web</button></div>`,
+    botones: [{ texto: 'Cerrar' }],
+  }).cuerpo.addEventListener('click', e => {
+    if (e.target.closest('[data-eml]')) descargar(`${archivo}.eml`, new Blob([eml], { type: 'message/rfc822' }));
+    if (e.target.closest('[data-web]')) {
+      descargar(`${archivo}.pdf`, pdfBlob());
+      const q = new URLSearchParams({ to: r.para.join(';'), subject: r.asunto, body: d.mensaje || '' });
+      if (r.cc.length) q.set('cc', r.cc.join(';'));
+      window.open(`https://outlook.office.com/mail/deeplink/compose?${q.toString().replace(/\+/g, '%20')}`, '_blank', 'noopener');
+    }
+  });
+}
+
+/** Descarga un archivo generado en el navegador */
+function descargar(nombre, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
 /**
  * Borrador de correo (.eml, RFC 5322) que Outlook abre como mensaje nuevo listo para enviar (X-Unsent: 1).
- * Sale desde la cuenta de Outlook de quien lo abre. Cuerpo HTML con imágenes incrustadas (cid) y adjuntos.
+ * Sin «From»: sale desde la cuenta de Outlook en la que se abre (p. ej. el correo corporativo del administrador del
+ * proyecto, o el del superadministrador aunque haya ingresado a GyC con otro correo). Cuerpo HTML con imágenes incrustadas (cid) y adjuntos.
  */
-function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] }) {
+function borradorEML({ para, cc = [], asunto, html, adjuntos = [] }) {
   const b64utf8 = t => { let bin = ''; for (const b of new TextEncoder().encode(t)) bin += String.fromCharCode(b); return btoa(bin); };
   const enc = t => (/^[\x20-\x7E]*$/.test(t) ? t : `=?UTF-8?B?${b64utf8(t)}?=`);
   const lineas = t => t.replace(/.{1,76}/g, '$&\r\n');
@@ -938,7 +968,6 @@ function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] })
   const parte = (a, disp) => [`Content-Type: ${a.tipo}; name="${enc(a.nombre).replace(/"/g, '')}"`, 'Content-Transfer-Encoding: base64',
     ...(a.cid ? [`Content-ID: <${a.cid}>`] : []), `Content-Disposition: ${disp}; ${nombreArch(a.nombre)}`, '', lineas(a.base64.replace(/\s/g, ''))].join('\r\n');
   const cab = [
-    ...(de ? [`From: ${enc(nombre || '')} <${de}>`] : []),
     `To: ${para.join(', ')}`, ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
     `Subject: ${enc(asunto)}`, 'X-Unsent: 1', 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${m}"`, '',
   ];
