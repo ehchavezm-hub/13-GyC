@@ -1,41 +1,45 @@
-// Programa de Arranque (CR-PG-SGP-01-F1 r1, pestaña "1.Programa de arranque").
+// Programa de Arranque (CR-PG-SGP-01-F1 r1, pestañas "0.Datos", "1.Programa de arranque" y "3.Listas").
 // Diseño basado en herramientas de referencia:
 //   · Procore (checklists): ítems agrupados por sección con avance "x/y" por sección y ficha del ítem con historial.
 //   · Smartsheet: filas agrupadas por fase (aquí, por Proceso), barras de avance en lugar de números.
 //   · Monday / tablas empresariales: estado en pastillas de color y edición en la misma celda.
 //   · Linear / Notion: panel lateral con el detalle del ítem.
-// Dos vistas, una por tipo de reunión:
-//   · Definición (amarillo): responsable, inicio y fin programado, comentarios — un valor por ítem.
-//   · Seguimiento (verde): % avance acumulado, comentario y fin re-programado — un registro por ítem y reunión.
+// Dos vistas, una por tipo de reunión (cabeceras con los mismos nombres que el Excel):
+//   · Definición (amarillo): Area, Aplica (Si / N/A), Resp., Inicio prog., Fin prog., Comentarios — un valor por ítem.
+//   · Seguimiento (verde): Fecha rev., % Ava. Acu., Comentarios, Fin re-prog. — un registro por ítem y reunión.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre } from '../core/store.js';
-import { esc, html, fmtFecha, hoy, sumarDias, libExcel } from '../core/util.js';
-import { error as mostrarError, pedirDatos, ok } from '../ui/ui.js';
+import { esc, html, fmtFecha, hoy, sumarDias, libExcel, normalizar } from '../core/util.js';
+import { error as mostrarError, pedirDatos, ok, confirmar } from '../ui/ui.js';
 import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
-const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin programado = Inicio programado + 90
+const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin prog. = Inicio prog. + 90
 const PROXIMOS_DIAS = 14;          // "por vencer": fin vigente dentro de 14 días
+
+// Lista "Aplicabilidad" de la pestaña 3.Listas
+const APLICA = [{ value: 'si', label: 'Si' }, { value: 'na', label: 'N/A' }];
 
 let estado = {};
 
-// Columnas de cada vista con su ancho por defecto (px). El ancho se cambia arrastrando el borde del encabezado,
-// como en Excel; doble clic en el borde lo restablece. Se recuerda por vista en este navegador.
+// Columnas de cada vista (nombres del Excel) con su ancho por defecto (px). El ancho se cambia arrastrando el borde
+// del encabezado, como en Excel; doble clic lo restablece. Se recuerda por vista en este navegador.
 const COLUMNAS = {
-  seguimiento: [
-    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Actividad', w: 330 }, { k: 'resp', txt: 'Responsable', w: 150 },
-    { k: 'finv', txt: 'Fin vigente', w: 100 }, { k: 'est', txt: 'Estado', w: 110 },
-    { k: 'av', txt: '% Avance acumulado', w: 135, cls: 'seg' }, { k: 'com', txt: 'Comentario de la reunión', w: 190, cls: 'seg' },
-    { k: 'finr', txt: 'Fin re-programado', w: 105, cls: 'seg' }, { k: 'mas', txt: '', w: 44, fija: true },
-  ],
   definicion: [
-    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Actividad', w: 380 }, { k: 'resp', txt: 'Responsable', w: 160, cls: 'def' },
-    { k: 'ini', txt: 'Inicio programado', w: 112, cls: 'def' }, { k: 'fin', txt: 'Fin programado', w: 112, cls: 'def' },
-    { k: 'dur', txt: 'Duración', w: 80 }, { k: 'com', txt: 'Comentarios', w: 250, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
+    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'area', txt: 'Area', w: 150 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' },
+    { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
+    { k: 'ini', txt: 'Inicio prog.', w: 104, cls: 'def' }, { k: 'fin', txt: 'Fin prog.', w: 104, cls: 'def' },
+    { k: 'com', txt: 'Comentarios', w: 220, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
+  ],
+  seguimiento: [
+    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
+    { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 130, cls: 'seg' },
+    { k: 'com', txt: 'Comentarios', w: 200, cls: 'seg' }, { k: 'finr', txt: 'Fin re-prog.', w: 100, cls: 'seg' },
+    { k: 'est', txt: 'Estado', w: 120 }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
 };
 const ANCHO_MIN = 40;
-const claveAnchos = modo => `gyc-arr-anchos-${modo}`;
+const claveAnchos = modo => `gyc-arr-anchos2-${modo}`;
 function anchos(modo) {
   let guardados = {};
   try { guardados = JSON.parse(localStorage.getItem(claveAnchos(modo)) || '{}'); } catch { /* sin almacenamiento */ }
@@ -44,7 +48,7 @@ function anchos(modo) {
 function guardarAnchos(modo, lista) {
   try { localStorage.setItem(claveAnchos(modo), JSON.stringify(Object.fromEntries(COLUMNAS[modo].map((c, i) => [c.k, lista[i]])))); } catch { /* opcional */ }
 }
-const filtros = { texto: '', proceso: '', resp: '', oblig: false, estado: '' };
+const filtros = { texto: '', proceso: '', resp: '', aplica: '', estado: '' };
 const plegados = new Set();
 const leerModo = () => { try { return localStorage.getItem('gyc-arr-modo'); } catch { return null; } };
 const guardarModo = m => { try { localStorage.setItem('gyc-arr-modo', m); } catch { /* opcional */ } };
@@ -63,6 +67,7 @@ export async function render(el) {
     <div class="pa-cab">
       <h1>Programa de Arranque</h1><span class="proy-badge">${esc(nombreSeleccion())}</span>
       <span class="flex"></span>
+      ${estado.editable ? '<button class="btn" data-a="importar" title="Cargar un Excel con el formato CR-PG-SGP-01-F1">⬆ Importar Excel</button>' : ''}
       <button class="btn" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
     <div data-kpis class="pa-kpis"></div>
@@ -71,6 +76,7 @@ export async function render(el) {
   </div>`);
   el.append(wrap);
   wrap.querySelector('[data-a="excel"]').addEventListener('click', () => exportarExcel().catch(e => mostrarError(mensajeError(e))));
+  wrap.querySelector('[data-a="importar"]')?.addEventListener('click', () => importarExcel().catch(e => mostrarError(mensajeError(e))));
   estado.wrap = wrap;
 
   try {
@@ -110,6 +116,10 @@ async function cargarDatos(proyId) {
 }
 
 const det = c => estado.detalle.get(c) || {};
+const item = c => estado.items.find(i => i.item_codigo === c);
+/** Aplicabilidad en este proyecto: la elegida, o la del formato (Si para obligatorios, N/A para opcionales). */
+const aplicaDe = c => det(c).aplica || (item(c)?.obligatorio ? 'si' : 'na');
+const aplica = c => aplicaDe(c) === 'si';
 const segDe = (c, fecha = estado.reunion) => estado.seguimientos.find(s => s.item_codigo === c && s.fecha_revision === fecha);
 const segVigente = (c, hasta = estado.reunion) => estado.seguimientos.filter(s => s.item_codigo === c && s.fecha_revision <= hasta).at(-1);
 const avanceDe = c => Number(segVigente(c)?.avance ?? 0);
@@ -124,8 +134,10 @@ const ESTADOS = {
   en_curso: { txt: 'En curso', cls: 'curso' },
   por_iniciar: { txt: 'Por iniciar', cls: 'neutro' },
   sin_definir: { txt: 'Sin definir', cls: 'vacio' },
+  no_aplica: { txt: 'N/A', cls: 'na' },
 };
 function estadoDe(c) {
+  if (!aplica(c)) return 'no_aplica';
   const d = det(c), av = avanceDe(c), fin = finVigente(c), ref = estado.reunion;
   if (av >= 100) return 'terminado';
   if (fin && fin < ref) return 'atrasado';
@@ -145,22 +157,21 @@ function usuariosProyecto() {
 const iniciales = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
 const barra = (pct, cls = '') => `<span class="pa-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>`;
 
-// ── Indicadores ───────────────────────────────────────────────────────────────
+// ── Indicadores (solo los ítems que aplican) ──────────────────────────────────
 
 function pintarKpis() {
-  const items = estado.items, n = items.length || 1;
+  const items = estado.items.filter(i => aplica(i.item_codigo)), n = items.length || 1;
   const est = items.map(i => estadoDe(i.item_codigo));
   const cuenta = k => est.filter(x => x === k).length;
   const promedio = Math.round(items.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / n);
-  const oblig = items.filter(i => i.obligatorio);
-  const obligOk = oblig.filter(i => avanceDe(i.item_codigo) >= 100).length;
+  const noAplican = estado.items.length - items.length;
   const sinResp = items.filter(i => !(det(i.item_codigo).responsable_id || det(i.item_codigo).responsable)).length;
   const tarjeta = (clave, valor, etiqueta, pie, cls = '') => `<button class="pa-kpi ${cls}${filtros.estado === clave ? ' activo' : ''}" data-kpi="${clave}" title="Filtrar la tabla">
     <span class="pa-kpi-linea"><span class="pa-kpi-val">${valor}</span><span class="pa-kpi-lbl">${etiqueta}</span></span>${pie ? `<span class="pa-kpi-pie">${pie}</span>` : ''}</button>`;
   const caja = estado.wrap.querySelector('[data-kpis]');
   caja.innerHTML = `<div class="pa-kpi pa-kpi-avance">
       <span class="pa-kpi-linea"><span class="pa-kpi-val">${promedio}%</span><span class="pa-kpi-lbl">Avance del programa · al ${fmtFecha(estado.reunion)}</span></span>${barra(promedio, 'grande')}
-      <span class="pa-kpi-pie">${cuenta('terminado')} de ${items.length} ítems terminados · obligatorios ${obligOk}/${oblig.length}</span></div>
+      <span class="pa-kpi-pie">${cuenta('terminado')} de ${items.length} ítems que aplican terminados · ${noAplican} N/A</span></div>
     ${tarjeta('atrasado', cuenta('atrasado'), 'Atrasados', 'fin vencido sin 100%', 'mal')}
     ${tarjeta('por_vencer', cuenta('por_vencer'), 'Por vencer', `próximos ${PROXIMOS_DIAS} días`, 'aviso')}
     ${tarjeta('en_curso', cuenta('en_curso'), 'En curso', 'con avance', 'curso')}
@@ -195,7 +206,10 @@ function pintarBarra() {
     <select data-f="proceso"><option value="">Todos los procesos</option>${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
     <select data-f="resp"><option value="">Todos los responsables</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin responsable</option>
       ${lista.map(u => `<option value="${esc(u.id)}"${u.id === filtros.resp ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select>
-    <label class="pa-chip"><input type="checkbox" data-f="oblig"${filtros.oblig ? ' checked' : ''}> Solo obligatorios</label>`;
+    <select data-f="aplica" title="Aplica (lista de aplicabilidad)">
+      <option value="si"${filtros.aplica === 'si' ? ' selected' : ''}>Aplica: Si</option>
+      <option value="na"${filtros.aplica === 'na' ? ' selected' : ''}>Aplica: N/A</option>
+      <option value=""${filtros.aplica === '' ? ' selected' : ''}>Aplica: todos</option></select>`;
   caja.onclick = async e => {
     const m = e.target.closest('[data-modo]')?.dataset.modo;
     if (m && m !== estado.modo) { estado.modo = m; guardarModo(m); pintarBarra(); pintarTabla(); return; }
@@ -203,7 +217,7 @@ function pintarBarra() {
       const d = await pedirDatos({
         titulo: 'Nueva reunión de seguimiento',
         antes: 'El avance, los comentarios y el fin re-programado se registrarán para esta fecha. Las reuniones anteriores quedan en el historial de cada ítem.',
-        campos: [{ name: 'fecha', label: 'Fecha de revisión', type: 'date', required: true }], valores: { fecha: hoy() },
+        campos: [{ name: 'fecha', label: 'Fecha rev.', type: 'date', required: true }], valores: { fecha: hoy() },
       });
       if (!d?.fecha) return;
       estado.reunion = d.fecha;
@@ -215,7 +229,7 @@ function pintarBarra() {
     const f = e.target.dataset.f;
     if (!f || f === 'texto') return;
     if (f === 'reunion') { estado.reunion = e.target.value; pintarTodo(); return; }
-    filtros[f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    filtros[f] = e.target.value;
     pintarTabla();
   };
 }
@@ -226,7 +240,7 @@ function filtrados() {
   const t = filtros.texto.trim().toLowerCase();
   return estado.items.filter(i => {
     const d = det(i.item_codigo);
-    return (!filtros.proceso || i.proceso === filtros.proceso) && (!filtros.oblig || i.obligatorio) &&
+    return (!filtros.proceso || i.proceso === filtros.proceso) && (!filtros.aplica || aplicaDe(i.item_codigo) === filtros.aplica) &&
       (!filtros.resp || (filtros.resp === '-' ? !d.responsable_id && !d.responsable : d.responsable_id === filtros.resp)) &&
       (!filtros.estado || estadoDe(i.item_codigo) === filtros.estado) &&
       (!t || `${i.item_codigo} ${i.descripcion} ${i.area_lider} ${i.proceso}`.toLowerCase().includes(t));
@@ -243,51 +257,49 @@ function pintarTabla() {
     if (!g) grupos.push(g = { proceso: i.proceso, items: [] });
     g.items.push(i);
   }
-  const ncols = seg ? 9 : 8;
-
   const modo = seg ? 'seguimiento' : 'definicion';
-  const cols = COLUMNAS[modo], ws = anchos(modo);
+  const cols = COLUMNAS[modo], ws = anchos(modo), ncols = cols.length;
   const colgroup = `<colgroup>${ws.map(w => `<col style="width:${w}px">`).join('')}</colgroup>`;
   const cab = `<tr>${cols.map((c, n) => `<th class="${c.cls || ''}">${esc(c.txt)}${c.fija ? '' : `<span class="pa-resize" data-col="${n}" title="Arrastre para cambiar el ancho · doble clic: ancho original"></span>`}</th>`).join('')}</tr>`;
 
   const fila = i => {
-    const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c);
-    const actividad = `<td class="c-act"><div class="pa-desc">${esc(i.descripcion)}</div>
-      <div class="pa-meta">${esc(i.area_lider)}${i.obligatorio ? '<span class="pa-oblig">Obligatorio</span>' : '<span class="pa-opc">Opcional</span>'}</div></td>`;
-    const resp = `<td class="c-resp"${ed} data-campo="responsable_id">${r ? `<span class="pa-avatar">${esc(iniciales(r))}</span><span class="pa-resp-n">${esc(r)}</span>` : '<span class="pa-vacio">Asignar</span>'}</td>`;
+    const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c), apl = aplica(c);
+    const clase = apl ? '' : 'na';
+    const desc = `<td class="c-act"><div class="pa-desc">${esc(i.descripcion)}</div>${seg ? `<div class="pa-meta">${esc(i.area_lider)}${apl ? '' : '<span class="pa-na">N/A</span>'}</div>` : ''}</td>`;
+    const resp = `<td class="c-resp"${ed} data-campo="responsable_id">${r ? `<span class="pa-avatar">${esc(iniciales(r))}</span><span class="pa-resp-n">${esc(r)}</span>` : `<span class="pa-vacio">${apl ? 'Asignar' : ''}</span>`}</td>`;
+    const mas = `<td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha del ítem e historial">›</button></td>`;
     if (!seg) {
-      const dur = d.inicio_programado && d.fin_programado ? Math.round((new Date(d.fin_programado) - new Date(d.inicio_programado)) / 86400000) : null;
-      return `<tr data-item-row="${esc(c)}" class="${i.obligatorio ? '' : 'opc'}">
-        <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${actividad}${resp}
+      return `<tr data-item-row="${esc(c)}" class="${clase}">
+        <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>
+        <td class="c-area">${esc(i.area_lider)}</td>
+        <td class="c-apl"${ed} data-campo="aplica"><span class="pa-aplica ${aplicaDe(c)}">${aplicaDe(c) === 'si' ? 'Si' : 'N/A'}</span></td>
+        ${desc}${resp}
         <td class="c-fecha"${ed} data-campo="inicio_programado">${d.inicio_programado ? fmtFecha(d.inicio_programado) : '<span class="pa-vacio">—</span>'}</td>
         <td class="c-fecha"${ed} data-campo="fin_programado">${d.fin_programado ? fmtFecha(d.fin_programado) : '<span class="pa-vacio">—</span>'}</td>
-        <td class="c-dur">${dur !== null ? `${dur} d` : ''}</td>
-        <td class="c-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>
-        <td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha del ítem">›</button></td></tr>`;
+        <td class="c-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>${mas}</tr>`;
     }
     const s = segDe(c), ref = !s && segVigente(c), v = s || ref || {};
     const av = v.avance != null ? Number(v.avance) : null;
-    const fin = finVigente(c);
-    return `<tr data-item-row="${esc(c)}" class="${i.obligatorio ? '' : 'opc'}">
-      <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${actividad}${resp}
-      <td class="c-fecha${k === 'atrasado' ? ' tarde' : ''}">${fin ? fmtFecha(fin) : '<span class="pa-vacio">—</span>'}</td>
-      <td class="c-est"><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span></td>
-      <td class="c-av${ref ? ' ref' : ''}"${ed} data-seg data-campo="avance" title="${ref ? `Último registro: reunión del ${fmtFecha(ref.fecha_revision)}` : ''}">
-        ${av !== null ? `<span class="pa-av">${barra(av, av >= 100 ? 'ok' : '')}<b>${av}%</b></span>` : '<span class="pa-vacio">0%</span>'}</td>
-      <td class="c-com${ref ? ' ref' : ''}"${ed} data-seg data-campo="comentarios">${esc(v.comentarios || '')}</td>
-      <td class="c-fecha${ref ? ' ref' : ''}"${ed} data-seg data-campo="fin_reprogramado">${v.fin_reprogramado ? fmtFecha(v.fin_reprogramado) : ''}</td>
-      <td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha e historial">›</button></td></tr>`;
+    return `<tr data-item-row="${esc(c)}" class="${clase}">
+      <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${desc}${resp}
+      <td class="c-fecha${ref ? ' ref' : ''}" title="${ref ? `Sin registro en esta reunión: se muestra la del ${fmtFecha(ref.fecha_revision)}` : ''}">${v.fecha_revision ? fmtFecha(v.fecha_revision) : ''}</td>
+      <td class="c-av${ref ? ' ref' : ''}"${apl ? ed : ''} data-seg data-campo="avance">
+        ${av !== null ? `<span class="pa-av">${barra(av, av >= 100 ? 'ok' : '')}<b>${av}%</b></span>` : `<span class="pa-vacio">${apl ? '0%' : ''}</span>`}</td>
+      <td class="c-com${ref ? ' ref' : ''}"${apl ? ed : ''} data-seg data-campo="comentarios">${esc(v.comentarios || '')}</td>
+      <td class="c-fecha${ref ? ' ref' : ''}${k === 'atrasado' ? ' tarde' : ''}"${apl ? ed : ''} data-seg data-campo="fin_reprogramado">${v.fin_reprogramado ? fmtFecha(v.fin_reprogramado) : ''}</td>
+      <td class="c-est"><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span></td>${mas}</tr>`;
   };
 
   const cuerpo = grupos.map(g => {
-    const terminados = g.items.filter(i => avanceDe(i.item_codigo) >= 100).length;
-    const prom = Math.round(g.items.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / g.items.length);
-    const atr = g.items.filter(i => estadoDe(i.item_codigo) === 'atrasado').length;
+    const apl = g.items.filter(i => aplica(i.item_codigo));
+    const terminados = apl.filter(i => avanceDe(i.item_codigo) >= 100).length;
+    const prom = apl.length ? Math.round(apl.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / apl.length) : 0;
+    const atr = apl.filter(i => estadoDe(i.item_codigo) === 'atrasado').length;
     const cerrado = plegados.has(g.proceso);
     return `<tbody class="pa-grupo${cerrado ? ' plegado' : ''}">
       <tr class="pa-grupo-cab" data-grupo="${esc(g.proceso)}"><td colspan="${ncols}"><div class="pa-grupo-in">
         <span class="pa-flecha">${cerrado ? '▸' : '▾'}</span><b>${esc(g.proceso)}</b>
-        <span class="pa-grupo-n">${terminados}/${g.items.length} terminados</span>${barra(prom)}<span class="pa-grupo-n">${prom}%</span>
+        <span class="pa-grupo-n">${terminados}/${apl.length} terminados</span>${barra(prom)}<span class="pa-grupo-n">${prom}%</span>
         ${atr ? `<span class="pa-estado mal">${atr} atrasado${atr > 1 ? 's' : ''}</span>` : ''}</div></td></tr>
       ${cerrado ? '' : g.items.map(fila).join('')}</tbody>`;
   }).join('');
@@ -353,6 +365,7 @@ function control(campo, actual) {
       ${lista.map(u => `<option value="${esc(u.id)}"${u.id === actual ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}
       ${soloProyecto ? '' : '<option disabled>(el proyecto aún no tiene miembros: se listan todos)</option>'}</select>`;
   }
+  if (campo === 'aplica') return `<select class="cel-input">${APLICA.map(o => `<option value="${o.value}"${o.value === actual ? ' selected' : ''}>${o.label}</option>`).join('')}</select>`;
   if (campo === 'avance') return `<input type="number" class="cel-input" min="0" max="100" step="5" value="${actual ?? ''}" placeholder="%">`;
   if (/programado|reprogramado/.test(campo)) return `<input type="date" class="cel-input" value="${actual || ''}">`;
   return `<input type="text" class="cel-input" value="${esc(actual || '')}">`;
@@ -362,7 +375,7 @@ function editarCelda(td) {
   const codigo = td.closest('[data-item-row]').dataset.itemRow;
   const campo = td.dataset.campo;
   const esSeg = td.hasAttribute('data-seg');
-  const actual = esSeg ? segDe(codigo)?.[campo] : det(codigo)[campo];
+  const actual = campo === 'aplica' ? aplicaDe(codigo) : esSeg ? segDe(codigo)?.[campo] : det(codigo)[campo];
   td.innerHTML = control(campo, actual);
   const inp = td.querySelector('input,select');
   inp.focus();
@@ -390,10 +403,10 @@ async function guardarDefinicion(codigo, valores) {
   const d = det(codigo);
   const cambios = {};
   for (const [k, v] of Object.entries(valores)) cambios[k] = v === '' || v == null ? null : v;
-  if ('responsable_id' in cambios) cambios.responsable = cambios.responsable_id ? nombre(cambios.responsable_id) : null;
+  if ('responsable_id' in cambios && !('responsable' in valores)) cambios.responsable = cambios.responsable_id ? nombre(cambios.responsable_id) : null;
   const inicio = cambios.inicio_programado !== undefined ? cambios.inicio_programado : d.inicio_programado;
   let fin = cambios.fin_programado !== undefined ? cambios.fin_programado : d.fin_programado;
-  // Como en el formato: si no tiene fin programado, se propone inicio + 90 días
+  // Como en el formato: si no tiene fin prog., se propone inicio + 90 días
   if (cambios.inicio_programado && !fin) fin = cambios.fin_programado = sumarDias(cambios.inicio_programado, DIAS_FIN_POR_DEFECTO);
   if (inicio && fin && fin < inicio) throw new Error('El fin programado no puede ser anterior al inicio programado.');
   const [g] = await api.upsert('programa_arranque_detalle',
@@ -423,7 +436,7 @@ async function guardarSeguimiento(codigo, valores, fecha = estado.reunion) {
 
 function abrirFicha(codigo) {
   document.querySelector('.pa-ficha-fondo')?.remove();
-  const i = estado.items.find(x => x.item_codigo === codigo);
+  const i = item(codigo);
   const d = det(codigo), k = estadoDe(codigo), av = avanceDe(codigo);
   const hist = estado.seguimientos.filter(s => s.item_codigo === codigo).slice().reverse();
   const s = segDe(codigo) || {};
@@ -433,24 +446,25 @@ function abrirFicha(codigo) {
     <div class="pa-ficha-cab"><span class="pa-cod">${esc(codigo)}</span><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span>
       <span class="flex"></span><button class="btn-icono" data-cerrar aria-label="Cerrar">✕</button></div>
     <h2>${esc(i.descripcion)}</h2>
-    <div class="pa-ficha-meta"><span>${esc(i.proceso)}</span><span>${esc(i.area_lider)}</span>${i.obligatorio ? '<span class="pa-oblig">Obligatorio</span>' : '<span class="pa-opc">Opcional</span>'}</div>
-    <div class="pa-ficha-av">${barra(av, 'grande')}<b>${av}%</b><span class="pa-vacio">avance acumulado al ${fmtFecha(estado.reunion)}</span></div>
+    <div class="pa-ficha-meta"><span>${esc(i.proceso)}</span><span>${esc(i.area_lider)}</span><span>Formato: ${i.obligatorio ? 'Si' : 'N/A'}</span></div>
+    <div class="pa-ficha-av">${barra(av, 'grande')}<b>${av}%</b><span class="pa-vacio">% Ava. Acu. al ${fmtFecha(estado.reunion)}</span></div>
 
     <section class="pa-sec def"><h3>Definición</h3>
       <form data-form="def" class="pa-form">
-        <label>Responsable<select name="responsable_id"${dis}><option value="">— Sin asignar —</option>
+        <label>Aplica<select name="aplica"${dis}>${APLICA.map(o => `<option value="${o.value}"${o.value === aplicaDe(codigo) ? ' selected' : ''}>${o.label}</option>`).join('')}</select></label>
+        <label>Resp.<select name="responsable_id"${dis}><option value="">— Sin asignar —</option>
           ${lista.map(u => `<option value="${esc(u.id)}"${u.id === d.responsable_id ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></label>
-        <label>Inicio programado<input type="date" name="inicio_programado" value="${d.inicio_programado || ''}"${dis}></label>
-        <label>Fin programado<input type="date" name="fin_programado" value="${d.fin_programado || ''}"${dis}></label>
+        <label>Inicio prog.<input type="date" name="inicio_programado" value="${d.inicio_programado || ''}"${dis}></label>
+        <label>Fin prog.<input type="date" name="fin_programado" value="${d.fin_programado || ''}"${dis}></label>
         <label class="full">Comentarios<textarea name="comentarios" rows="2"${dis}>${esc(d.comentarios || '')}</textarea></label>
         ${estado.editable ? '<button class="btn btn-primario" type="submit">Guardar definición</button>' : ''}
       </form></section>
 
-    <section class="pa-sec seg"><h3>Seguimiento · reunión del ${fmtFecha(estado.reunion)}</h3>
+    <section class="pa-sec seg"><h3>Seguimiento · Fecha rev. ${fmtFecha(estado.reunion)}</h3>
       <form data-form="seg" class="pa-form">
-        <label>% Avance acumulado<input type="number" name="avance" min="0" max="100" step="5" value="${s.avance ?? ''}"${dis}></label>
-        <label>Fin re-programado<input type="date" name="fin_reprogramado" value="${s.fin_reprogramado || ''}"${dis}></label>
-        <label class="full">Comentario de la reunión<textarea name="comentarios" rows="2"${dis}>${esc(s.comentarios || '')}</textarea></label>
+        <label>% Ava. Acu.<input type="number" name="avance" min="0" max="100" step="5" value="${s.avance ?? ''}"${dis}></label>
+        <label>Fin re-prog.<input type="date" name="fin_reprogramado" value="${s.fin_reprogramado || ''}"${dis}></label>
+        <label class="full">Comentarios<textarea name="comentarios" rows="2"${dis}>${esc(s.comentarios || '')}</textarea></label>
         ${estado.editable ? '<button class="btn btn-primario" type="submit">Guardar seguimiento</button>' : ''}
       </form></section>
 
@@ -458,7 +472,7 @@ function abrirFicha(codigo) {
       ${hist.length ? `<ol class="pa-linea">${hist.map(h => `<li><div class="pa-linea-cab"><b>${fmtFecha(h.fecha_revision)}</b>
           ${h.avance != null ? `<span class="pa-av">${barra(Number(h.avance))}<b>${Number(h.avance)}%</b></span>` : ''}</div>
           ${h.comentarios ? `<p>${esc(h.comentarios)}</p>` : ''}
-          <small>${h.fin_reprogramado ? `Fin re-programado: ${fmtFecha(h.fin_reprogramado)} · ` : ''}${esc(nombre(h.created_by) || '')}</small></li>`).join('')}</ol>`
+          <small>${h.fin_reprogramado ? `Fin re-prog.: ${fmtFecha(h.fin_reprogramado)} · ` : ''}${esc(nombre(h.created_by) || '')}</small></li>`).join('')}</ol>`
         : '<p class="pa-vacio">Sin registros de seguimiento todavía.</p>'}
     </section></aside></div>`);
   document.body.append(fondo);
@@ -481,6 +495,118 @@ function abrirFicha(codigo) {
   }));
 }
 
+// ── Importar un Excel con el formato CR-PG-SGP-01-F1 ──────────────────────────
+
+const clave = s => normalizar(String(s ?? '')).replace(/[^a-z0-9%]/g, '');
+// Cabecera del Excel → campo (versiones r1 anterior y actual del formato)
+const CABECERAS = {
+  item: 'item', proceso: 'proceso', area: 'area', arealider: 'area', aplica: 'aplica', obligatorio: 'aplica',
+  descripciondeactividad: 'descripcion', descripciondeactividades: 'descripcion',
+  resp: 'resp', responsable: 'resp', inicioprog: 'inicio', inicioprogramado: 'inicio', finprog: 'fin', finprogramado: 'fin',
+  fecharev: 'frev', fechaderevision: 'frev', '%avaacu': 'avance', '%avanceacumulado': 'avance', finreprog: 'finr', finreprogramado: 'finr',
+};
+const fechaIso = v => {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  const m = String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? String(v).slice(0, 10) : null;
+};
+
+async function importarExcel() {
+  const archivo = await new Promise(res => {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', accept: '.xlsx,.xlsm,.xls' });
+    inp.onchange = () => res(inp.files[0] || null);
+    inp.click();
+  });
+  if (!archivo) return;
+  const XLSX = await libExcel();
+  const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: true });
+  const hoja = libro.SheetNames.find(n => /^1\.?\s*programa/i.test(n)) || libro.SheetNames.find(n => /programa/i.test(n));
+  if (!hoja) throw new Error('El archivo no tiene la pestaña "1.Programa de arranque".');
+  const filas = XLSX.utils.sheet_to_json(libro.Sheets[hoja], { header: 1, raw: true, defval: null });
+
+  // Cabeceras: la fila que contiene "Ítem". Hay dos columnas "Comentarios": la primera es de definición y la segunda de seguimiento
+  const iCab = filas.findIndex(f => f.some(v => clave(v) === 'item'));
+  if (iCab < 0) throw new Error('No se encontró la fila de cabeceras (columna "Ítem").');
+  const col = {};
+  filas[iCab].forEach((v, n) => {
+    const k = clave(v);
+    if (k === 'comentarios') { if (col.comdef == null) col.comdef = n; else col.comseg = n; return; }
+    if (CABECERAS[k] && col[CABECERAS[k]] == null) col[CABECERAS[k]] = n;
+  });
+  if (col.item == null) throw new Error('No se encontró la columna "Ítem".');
+
+  // Responsables: por nombre (sin tildes) entre los usuarios de la empresa
+  const porNombre = new Map(store.perfiles.map(p => [clave(p.nombre), p]));
+  const codigos = new Set(estado.items.map(i => i.item_codigo));
+  const defs = [], segs = [], sinUsuario = new Set(), desconocidos = [];
+  for (const f of filas.slice(iCab + 1)) {
+    const cod = f[col.item] == null ? '' : String(f[col.item]).trim();
+    if (!cod) continue;
+    if (!codigos.has(cod)) { desconocidos.push(cod); continue; }
+    const val = k => (col[k] == null ? undefined : f[col[k]]);
+    const d = { programa_id: estado.programa.id, item_codigo: cod };
+    if (col.aplica != null) { const a = clave(val('aplica')); d.aplica = a === 'na' || a === 'no' ? 'na' : a === 'si' ? 'si' : null; }
+    if (col.resp != null) {
+      const nom = String(val('resp') ?? '').trim();
+      const p = porNombre.get(clave(nom));
+      d.responsable_id = p?.id || null;
+      d.responsable = nom || null;
+      if (nom && !p) sinUsuario.add(nom);
+    }
+    if (col.inicio != null) d.inicio_programado = fechaIso(val('inicio'));
+    if (col.fin != null) d.fin_programado = fechaIso(val('fin'));
+    if (col.comdef != null) d.comentarios = f[col.comdef] == null ? null : String(f[col.comdef]);
+    defs.push(d);
+    const frev = fechaIso(val('frev'));
+    if (frev) {
+      let av = val('avance');
+      av = av == null || av === '' ? null : Number(av);
+      if (av !== null && av <= 1) av = Math.round(av * 1000) / 10;   // 0,25 en Excel = 25 %
+      segs.push({ programa_id: estado.programa.id, item_codigo: cod, fecha_revision: frev, avance: av,
+        comentarios: col.comseg == null || f[col.comseg] == null ? null : String(f[col.comseg]), fin_reprogramado: fechaIso(val('finr')) });
+    }
+  }
+  if (!defs.length) throw new Error('El archivo no tiene ítems del programa de arranque.');
+
+  // Pestaña 0.Datos: información del proyecto
+  const hojaDatos = libro.SheetNames.find(n => /^0\.?\s*datos/i.test(n));
+  const info = {};
+  if (hojaDatos) {
+    const MAPA = { cr: 'cr', proyecto: 'nombre_completo', iniciocontractual: 'inicio_contractual', fincontractual: 'fin_contractual',
+      fechainiciomovilizacion: 'fecha_movilizacion', fechainiciodeconstruccion: 'fecha_construccion' };
+    for (const f of XLSX.utils.sheet_to_json(libro.Sheets[hojaDatos], { header: 1, raw: true, defval: null })) {
+      const n = f.findIndex(v => MAPA[clave(v)]);
+      if (n < 0) continue;
+      const campo = MAPA[clave(f[n])], v = f[n + 1];
+      if (v == null || v === '') continue;
+      info[campo] = campo === 'cr' || campo === 'nombre_completo' ? String(v).trim() : fechaIso(v);
+    }
+  }
+
+  const reuniones = [...new Set(segs.map(s => s.fecha_revision))].sort();
+  const nInfo = Object.keys(info).length;
+  const si = await confirmar(`Se cargará "${archivo.name}" en ${nombreSeleccion()}:
+    · ${defs.length} ítems de definición (Aplica, Resp., Inicio prog., Fin prog., Comentarios)
+    · ${segs.length} registros de seguimiento${reuniones.length ? ` (reunión${reuniones.length > 1 ? 'es' : ''} del ${reuniones.map(fmtFecha).join(', ')})` : ''}
+    ${nInfo ? `· ${nInfo} dato(s) de la información del proyecto (pestaña 0.Datos)` : ''}
+    ${sinUsuario.size ? `· Responsables que no son usuarios de la empresa (quedan como texto): ${[...sinUsuario].join(', ')}` : ''}
+    ${desconocidos.length ? `· Ítems que no existen en el formato y se omiten: ${desconocidos.join(', ')}` : ''}
+    Los valores actuales de esos ítems se reemplazan. ¿Continuar?`, { titulo: 'Importar Excel', texto: 'Importar' });
+  if (!si) return;
+
+  for (let n = 0; n < defs.length; n += 100) await api.upsert('programa_arranque_detalle', defs.slice(n, n + 100), 'programa_id,item_codigo');
+  for (let n = 0; n < segs.length; n += 100) await api.upsert('programa_arranque_seguimiento', segs.slice(n, n + 100), 'programa_id,item_codigo,fecha_revision');
+  if (nInfo) {
+    const p = proyecto(estado.proyId);
+    Object.assign(p, await api.update('proyectos', estado.proyId, info));
+  }
+  ok(`Importado: ${defs.length} ítems y ${segs.length} registros de seguimiento.`);
+  await cargarDatos(estado.proyId);
+  pintarTodo();
+}
+
 // ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
 
 async function exportarExcel() {
@@ -489,18 +615,19 @@ async function exportarExcel() {
   const libro = XLSX.utils.book_new();
   const datos = CAMPOS_INFO.map(c => [c.label, c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : (p[c.name] || '')]);
   XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], ...datos.map(r => ['', ...r])]), '0.Datos');
-  const cab = ['Ítem', 'Proceso', 'Área Líder', 'Obligatorio', 'Descripción de Actividades', 'Responsable', 'Inicio programado',
-    'Fin programado', 'Comentarios', '', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios', 'Fin re-programado', 'Estado'];
+  const cab = ['Ítem', 'Proceso', 'Area', 'Aplica', 'Descripción de actividad', 'Resp.', 'Inicio prog.', 'Fin prog.', 'Comentarios', '',
+    'Fecha rev.', '% Ava. Acu.', 'Comentarios', 'Fin re-prog.', 'Estado'];
   const filas = estado.items.map(i => {
     const d = det(i.item_codigo), s = segVigente(i.item_codigo) || {};
-    return [i.item_codigo, i.proceso, i.area_lider, i.obligatorio ? 'Sí' : '', i.descripcion, respDe(i.item_codigo) || '',
+    return [i.item_codigo, i.proceso, i.area_lider, aplicaDe(i.item_codigo) === 'si' ? 'Sí' : 'N/A', i.descripcion, respDe(i.item_codigo) || '',
       d.inicio_programado || '', d.fin_programado || '', d.comentarios || '', '', s.fecha_revision || '',
       s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '', s.fin_reprogramado || '', ESTADOS[estadoDe(i.item_codigo)].txt];
   });
   XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], cab, ...filas]), '1.Programa de arranque');
   const hist = estado.seguimientos.map(s => [s.item_codigo, s.fecha_revision, s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '',
     s.fin_reprogramado || '', nombre(s.created_by) || '']);
-  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Ítem', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios',
-    'Fin re-programado', 'Registró'], ...hist]), 'Historial de seguimiento');
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Ítem', 'Fecha rev.', '% Ava. Acu.', 'Comentarios',
+    'Fin re-prog.', 'Registró'], ...hist]), 'Historial de seguimiento');
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], [], [], ['', '', 'Aplicabilidad'], ['', '', 'Si'], ['', '', 'N/A']]), '3.Listas');
   XLSX.writeFile(libro, `CR-PG-SGP-01-F1 Programa de Arranque ${p.codigo || ''} ${fmtFecha(estado.reunion).replaceAll('/', '-')}.xlsx`);
 }

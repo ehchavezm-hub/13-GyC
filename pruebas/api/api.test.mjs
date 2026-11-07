@@ -33,6 +33,7 @@ before(async () => {
     await c.query(migracion('037_programa_arranque_r1.sql'));
     await c.query(migracion('038_administracion_tres_niveles.sql'));
     await c.query(migracion('039_paleta_tableau.sql'));
+    await c.query(migracion('040_aplica.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {

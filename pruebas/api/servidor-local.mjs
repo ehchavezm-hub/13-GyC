@@ -24,11 +24,11 @@ if (process.argv.includes('--reiniciar')) {
   const c = await pool.connect();
   try {
     await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql', '037_programa_arranque_r1.sql', '038_administracion_tres_niveles.sql', '039_paleta_tableau.sql']) {
+    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql', '037_programa_arranque_r1.sql', '038_administracion_tres_niveles.sql', '039_paleta_tableau.sql', '040_aplica.sql']) {
       await c.query(readFileSync(path.join(RAIZ, 'db/migrations', m), 'utf8'));
     }
   } finally { c.release(); }
-  console.log('Base reiniciada con 000 + 035 + 036 + 037 + 038 + 039.');
+  console.log('Base reiniciada con 000 + 035 + 036 + 037 + 038 + 039 + 040.');
 }
 
 usarVerificador(async token => token);
