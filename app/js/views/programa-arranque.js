@@ -10,7 +10,8 @@
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre } from '../core/store.js';
-import { esc, html, fmtFecha, hoy, sumarDias, libExcel, normalizar } from '../core/util.js';
+import { esc, html, fmtFecha, hoy, sumarDias, libExcel, libGraficos, normalizar } from '../core/util.js';
+import { icono } from '../ui/iconos.js';
 import { error as mostrarError, pedirDatos, ok, confirmar } from '../ui/ui.js';
 import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
@@ -26,13 +27,13 @@ let estado = {};
 // del encabezado, como en Excel; doble clic lo restablece. Se recuerda por vista en este navegador.
 const COLUMNAS = {
   definicion: [
-    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'area', txt: 'Area', w: 150 },
+    { k: 'cod', txt: 'It', w: 42 }, { k: 'area', txt: 'Area', w: 150 },
     { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
     { k: 'ini', txt: 'Inicio prog.', w: 104, cls: 'def' }, { k: 'fin', txt: 'Fin prog.', w: 104, cls: 'def' },
     { k: 'com', txt: 'Comentarios', w: 220, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
   seguimiento: [
-    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
+    { k: 'cod', txt: 'It', w: 42 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
     { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'avant', txt: '% Ava. ant.', w: 92, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 150, cls: 'seg' },
     { k: 'com', txt: 'Comentarios', w: 200, cls: 'seg' }, { k: 'finr', txt: 'Fin re-prog.', w: 100, cls: 'seg' },
     { k: 'est', txt: 'Estado', w: 120 }, { k: 'mas', txt: '', w: 44, fija: true },
@@ -192,16 +193,19 @@ function pintarBarra() {
   const { lista } = usuariosProyecto();
   const fechas = [...new Set([...estado.reuniones, estado.reunion])].sort().reverse();
   const seg = estado.modo === 'seguimiento';
+  const curva = estado.modo === 'curva';
+  const conReunion = seg || curva;
   const caja = estado.wrap.querySelector('[data-barra]');
   caja.innerHTML = `
     <div class="pa-vistas" role="tablist">
-      <button role="tab" data-modo="definicion" class="def${seg ? '' : ' activo'}" aria-selected="${!seg}">Definición</button>
+      <button role="tab" data-modo="definicion" class="def${estado.modo === 'definicion' ? ' activo' : ''}" aria-selected="${estado.modo === 'definicion'}">Definición</button>
       <button role="tab" data-modo="seguimiento" class="seg${seg ? ' activo' : ''}" aria-selected="${seg}">Seguimiento</button>
     </div>
-    ${seg ? `<label class="pa-reunion">Reunión del
+    ${conReunion ? `<label class="pa-reunion">Reunión del
         <select data-f="reunion">${fechas.map(f => `<option value="${f}"${f === estado.reunion ? ' selected' : ''}>${fmtFecha(f)}${estado.reuniones.includes(f) ? '' : ' (nueva)'}</option>`).join('')}</select></label>
       ${estado.editable ? '<button class="btn btn-sm" data-a="nueva" title="Nueva reunión de seguimiento">＋ Reunión</button>' : ''}`
       : '<span class="pa-nota">Reunión de definición</span>'}
+    <button role="tab" class="pa-tab-curva${curva ? ' activo' : ''}" data-modo="curva" aria-selected="${curva}" title="Avance programado vs. real">${icono('grafico')} Curva S</button>
     <span class="flex"></span>
     <input type="search" class="pa-buscar" data-f="texto" placeholder="Buscar…" value="${esc(filtros.texto)}">
     <select data-f="proceso"><option value="">Proceso: todos</option>${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
@@ -213,7 +217,7 @@ function pintarBarra() {
       <option value=""${filtros.aplica === '' ? ' selected' : ''}>Aplica: todos</option></select>`;
   caja.onclick = async e => {
     const m = e.target.closest('[data-modo]')?.dataset.modo;
-    if (m && m !== estado.modo) { estado.modo = m; guardarModo(m); pintarBarra(); pintarTabla(); return; }
+    if (m && m !== estado.modo) { estado.modo = m; guardarModo(m === 'curva' ? 'seguimiento' : m); pintarBarra(); pintarTabla(); return; }
     if (e.target.closest('[data-a="nueva"]')) {
       const d = await pedirDatos({
         titulo: 'Nueva reunión de seguimiento',
@@ -249,6 +253,7 @@ function filtrados() {
 }
 
 function pintarTabla() {
+  if (estado.modo === 'curva') return pintarCurva();
   const seg = estado.modo === 'seguimiento';
   const ed = estado.editable ? ' data-editable' : '';
   const items = filtrados();
@@ -323,6 +328,101 @@ function pintarTabla() {
     const td = e.target.closest('[data-editable]');
     if (td && !td.querySelector('input,select,textarea')) editarCelda(td);
   };
+}
+
+// ── Curva S: avance programado vs. real ───────────────────────────────────────
+// Programado: cada ítem que aplica avanza linealmente de 0 % (Inicio prog.) a 100 % (Fin prog.); la curva es el
+// promedio de los ítems. Real: el % Ava. Acu. promedio registrado en cada reunión de seguimiento.
+
+const fechaMas = (f, d) => sumarDias(f, d);
+function planItem(d, t) {
+  if (!d.inicio_programado || !d.fin_programado) return 0;
+  if (t <= d.inicio_programado) return 0;
+  if (t >= d.fin_programado) return 100;
+  const total = (new Date(d.fin_programado) - new Date(d.inicio_programado)) / 86400000;
+  return total > 0 ? ((new Date(t) - new Date(d.inicio_programado)) / 86400000) / total * 100 : 100;
+}
+function datosCurva() {
+  const items = filtrados().filter(i => aplica(i.item_codigo));
+  const n = items.length || 1;
+  const conFechas = items.filter(i => det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado);
+  const fechasPlan = conFechas.flatMap(i => [det(i.item_codigo).inicio_programado, det(i.item_codigo).fin_programado]);
+  const extremos = [...fechasPlan, ...estado.reuniones, estado.reunion].sort();
+  if (!extremos.length) return null;
+  const desde = extremos[0], hasta = extremos.at(-1);
+  const fechas = new Set([...estado.reuniones, estado.reunion]);
+  for (let f = desde; f <= hasta; f = fechaMas(f, 7)) fechas.add(f);
+  fechas.add(hasta);
+  const eje = [...fechas].filter(f => f >= desde && f <= hasta).sort();
+  const prog = f => Math.round(items.reduce((s, i) => s + planItem(det(i.item_codigo), f), 0) / n * 10) / 10;
+  const real = f => Math.round(items.reduce((s, i) => s + Number(segVigente(i.item_codigo, f)?.avance ?? 0), 0) / n * 10) / 10;
+  return {
+    items, sinFechas: items.length - conFechas.length, eje,
+    programado: eje.map(prog),
+    real: eje.map(f => (estado.reuniones.includes(f) && f <= estado.reunion ? real(f) : null)),
+    reuniones: estado.reuniones.filter(f => f <= estado.reunion).map(f => ({ f, p: prog(f), r: real(f) })),
+  };
+}
+
+async function pintarCurva() {
+  const caja = estado.wrap.querySelector('[data-tabla]');
+  estado.grafico?.destroy?.();
+  const c = datosCurva();
+  if (!c || !c.items.length) {
+    caja.innerHTML = '<p class="pa-sin">No hay ítems que apliquen con estos filtros.</p>';
+    return;
+  }
+  const ultima = c.reuniones.at(-1);
+  const p = c.programado[c.eje.indexOf(estado.reunion)] ?? 0;
+  const r = ultima ? ultima.r : 0;
+  const desv = Math.round((r - p) * 10) / 10;
+  const indice = p > 0 ? Math.round(r / p * 100) / 100 : null;
+  caja.innerHTML = `<div class="pa-curva">
+    <div class="pa-curva-res">
+      <span><i class="pa-ley prog"></i>Programado al ${fmtFecha(estado.reunion)}: <b>${p}%</b></span>
+      <span><i class="pa-ley real"></i>Real: <b>${r}%</b></span>
+      <span>Desviación: <b class="${desv < 0 ? 'baja' : 'sube'}">${desv > 0 ? '+' : ''}${desv} pts</b></span>
+      <span title="Real ÷ Programado (1,00 = según lo programado)">Índice de desempeño: <b class="${indice !== null && indice < 1 ? 'baja' : 'sube'}">${indice === null ? '—' : indice.toFixed(2)}</b></span>
+      <span class="pa-vacio">${c.items.length} ítems que aplican${c.sinFechas ? ` · ${c.sinFechas} sin fechas programadas (cuentan 0 % programado)` : ''}</span>
+    </div>
+    <div class="pa-curva-graf"><canvas data-g="curva"></canvas></div>
+    <table class="pa-curva-tabla"><thead><tr><th>Fecha rev.</th><th>% Programado</th><th>% Real</th><th>Desviación</th><th>Índice</th></tr></thead>
+      <tbody>${c.reuniones.length ? c.reuniones.slice().reverse().map(x => {
+        const d = Math.round((x.r - x.p) * 10) / 10;
+        return `<tr><td>${fmtFecha(x.f)}</td><td>${x.p}%</td><td>${x.r}%</td><td class="${d < 0 ? 'baja' : 'sube'}">${d > 0 ? '+' : ''}${d}</td><td>${x.p > 0 ? (x.r / x.p).toFixed(2) : '—'}</td></tr>`;
+      }).join('') : '<tr><td colspan="5" class="pa-vacio">Aún no hay reuniones de seguimiento.</td></tr>'}</tbody></table>
+  </div>`;
+  const Chart = await libGraficos();
+  if (estado.modo !== 'curva') return;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const iReunion = c.eje.indexOf(estado.reunion);
+  const lineaReunion = {
+    id: 'lineaReunion',
+    afterDatasetsDraw(ch) {
+      if (iReunion < 0) return;
+      const x = ch.scales.x.getPixelForValue(iReunion), { top, bottom } = ch.chartArea, g = ch.ctx;
+      g.save(); g.strokeStyle = css('--dark'); g.setLineDash([4, 4]); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
+      g.setLineDash([]); g.fillStyle = css('--dark'); g.font = '11px sans-serif'; g.fillText(`Reunión ${fmtFecha(estado.reunion)}`, x + 4, top + 12);
+      g.restore();
+    },
+  };
+  estado.grafico = new Chart(caja.querySelector('[data-g="curva"]'), {
+    type: 'line',
+    data: {
+      labels: c.eje.map(fmtFecha),
+      datasets: [
+        { label: 'Programado', data: c.programado, borderColor: css('--azul'), backgroundColor: css('--azul'), borderWidth: 2, pointRadius: 0, tension: 0.25 },
+        { label: 'Real', data: c.real, borderColor: css('--naranja'), backgroundColor: css('--naranja'), borderWidth: 3, pointRadius: 4, spanGaps: true, tension: 0.2 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => `${v}%` } }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } } },
+      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${x.parsed.y}%` } } },
+    },
+    plugins: [lineaReunion],
+  });
 }
 
 // ── Ancho de columnas con el mouse (como Excel) ───────────────────────────────
