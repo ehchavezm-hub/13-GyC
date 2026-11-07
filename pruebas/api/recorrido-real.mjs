@@ -131,6 +131,12 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   await pagina.waitForTimeout(1500);
   const docPdf = await pagina.locator('.vista-pdf iframe').evaluate(f => f.srcdoc).catch(() => '');
   if (!docPdf.includes('Curva S') || (docPdf.match(/<h3>/g) || []).length < 10) errores.push('PDF: no incluye la Curva S o los procesos');
+  // Guardar PDF (q69): descarga el archivo con el nombre exacto Proyecto_Programa de arranque_DD-MM-AAAA.pdf
+  const [descarga] = await Promise.all([pagina.waitForEvent('download', { timeout: 60000 }).catch(() => null), pagina.locator('.vista-pdf [data-a="pdf"]').click()]);
+  const nombrePdf = descarga?.suggestedFilename() || '';
+  // (sin un locale UTF-8, Chromium en Linux informa «download» para nombres con tildes: córralo con LANG=C.UTF-8)
+  if (!/_Programa de arranque_\d{2}-\d{2}-\d{4}\.pdf$/.test(nombrePdf) && !(nombrePdf === 'download' && !/UTF-8/i.test(process.env.LANG || ''))) errores.push(`PDF: nombre de archivo inesperado «${nombrePdf}»`);
+  if (descarga && !(await descarga.createReadStream().then(r => new Promise(ok => r.once('data', d => ok(String(d).startsWith('%PDF'))))))) errores.push('PDF: la descarga no es un PDF');
   await pagina.keyboard.press('Escape');
   await pagina.locator('[data-modo="definicion"]').click();
   // Aplica (lista Si / N/A): el ítem opcional 6 parte en N/A y se cambia a Si

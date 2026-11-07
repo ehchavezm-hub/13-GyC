@@ -97,7 +97,8 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
         <label><input type="checkbox" data-o="unaHoja"${pref.unaHoja ? ' checked' : ''}> Todo en 1 hoja</label>
         <label class="archivo">📁 <input data-o="archivo" value="${esc(archivo)}.pdf"></label>
         <span class="flex"></span>
-        <button class="btn btn-primario btn-sm" data-a="pdf">🖨 Guardar PDF</button>
+        <button class="btn btn-sm" data-a="imprimir" title="Abrir el diálogo de impresión (papel)">🖨 Imprimir</button>
+        <button class="btn btn-primario btn-sm" data-a="pdf" title="Descargar el PDF con el nombre indicado">⬇ Guardar PDF</button>
       </div>
       <div class="reportes-hojas"><iframe title="Presentación preliminar"></iframe></div>
     </div>`;
@@ -126,9 +127,14 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   capa.addEventListener('mousedown', e => { if (e.target === capa) cerrar(); });
   capa.querySelectorAll('[data-ori]').forEach(b => { b.onclick = () => { estado.orientacion = b.dataset.ori; pintar(); }; });
   capa.querySelectorAll('[data-o="papel"], [data-o="unaHoja"]').forEach(x => { x.onchange = pintar; });
-  capa.querySelector('[data-a="pdf"]').onclick = () => {
+  capa.querySelector('[data-a="imprimir"]').onclick = () => {
     fijarTitulo();
     marco.contentWindow.focus(); marco.contentWindow.print();
+  };
+  capa.querySelector('[data-a="pdf"]').onclick = async e => {
+    const papel = capa.querySelector('[data-o="papel"]').value, unaHoja = capa.querySelector('[data-o="unaHoja"]').checked;
+    try { await guardarPDF(e.currentTarget, modulo, contenidoHTML, { papel, orientacion: estado.orientacion, unaHoja, proyectoTexto, archivo: nombrePDF() }); }
+    catch (err) { (await import('../ui/ui.js')).error(err.message || String(err)); }
   };
   pintar();
 }
@@ -237,8 +243,11 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
   <div class="pie"><span>${esc(firma)}</span><span>—</span><span>Vista preliminar</span></div>
 </div>
 <script>
+  // Escala para que la hoja entera (con sus márgenes) entre en el ancho visible del marco: clientWidth descuenta la
+  // barra de desplazamiento (innerWidth no), y así no se corta el borde derecho de la hoja (q67)
   const encajar = () => { const h = document.getElementById('hoja'); document.documentElement.style.setProperty('--vista', 1);
-    document.documentElement.style.setProperty('--vista', Math.min(1, (innerWidth - 28) / h.offsetWidth)); };
+    const m = 32;   // 16 px de margen a cada lado (los márgenes «auto» no sirven para medir)
+    document.documentElement.style.setProperty('--vista', Math.min(1, (document.documentElement.clientWidth - 12) / (h.offsetWidth + m))); };
   addEventListener('resize', encajar); addEventListener('load', encajar); encajar();
   // "Todo en 1 hoja": reduce el contenido hasta que entre en el alto útil de la hoja
   if (${unaHoja ? 'true' : 'false'}) {
@@ -257,7 +266,30 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
  * Genera el informe como ARCHIVO PDF (para adjuntarlo a un correo), con el mismo documento de la vista preliminar.
  * Devuelve el contenido en base64 (sin el prefijo "data:").
  */
-export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = 'landscape', papel = 'A4', proyectoTexto, archivo } = {}) {
+/** Descarga un PDF (base64) con el nombre exacto: no depende del título de la página ni del diálogo de impresión */
+export function descargarPDF(nombre, base64) {
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  a.download = `${limpiarNombre(String(nombre).replace(/\.pdf$/i, ''))}.pdf`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+/**
+ * «Guardar PDF» (q69): genera el archivo y lo descarga con el nombre del campo, siempre el mismo. Calidad para leer
+ * texto de 6,5 pt. Devuelve cuando terminó (el botón muestra «Generando…» mientras tanto).
+ */
+export async function guardarPDF(boton, titulo, contenidoHTML, opciones) {
+  const texto = boton.textContent;
+  boton.disabled = true; boton.textContent = '⏳ Generando PDF…';
+  try {
+    const b64 = await generarArchivoPDF(titulo, contenidoHTML, { escala: 2, calidad: 0.92, ...opciones });
+    descargarPDF(opciones.archivo, b64);
+  } finally { boton.disabled = false; boton.textContent = texto; }
+}
+
+export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = 'landscape', papel = 'A4', proyectoTexto, archivo, unaHoja = false, escala = 1.6, calidad = 0.82 } = {}) {
   const [a, b] = PAPELES[papel] || PAPELES.A4;
   const [anchoMm] = orientacion === 'landscape' ? [b, a] : [a, b];
   const marco = document.createElement('iframe');
@@ -265,7 +297,7 @@ export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = '
   marco.style.cssText = `position:fixed;left:-20000px;top:0;width:${Math.ceil(anchoMm * 96 / 25.4) + 40}px;height:1200px;border:0;visibility:hidden`;
   document.body.append(marco);
   try {
-    await new Promise(ok => { marco.onload = ok; marco.srcdoc = documentoReporte(titulo, contenidoHTML, { papel, orientacion, proyectoTexto, archivo }); });
+    await new Promise(ok => { marco.onload = ok; marco.srcdoc = documentoReporte(titulo, contenidoHTML, { papel, orientacion, proyectoTexto, archivo, unaHoja }); });
     const doc = marco.contentDocument;
     // La librería se carga dentro del documento del informe (sus estilos no se mezclan con los del aplicativo)
     await new Promise((ok, mal) => {
@@ -283,8 +315,8 @@ export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = '
     const opciones = marco.contentWindow.JSON.parse(JSON.stringify({
       margin: [8, 8, 10, 8],
       // Resolución suficiente para leer texto de 7,5 pt sin que el adjunto pase de ~1–1,5 MB
-      image: { type: 'jpeg', quality: 0.82 },
-      html2canvas: { scale: 1.6, useCORS: true, backgroundColor: '#FFFFFF' },
+      image: { type: 'jpeg', quality: calidad },
+      html2canvas: { scale: escala, useCORS: true, backgroundColor: '#FFFFFF' },
       jsPDF: { unit: 'mm', format: papel.toLowerCase(), orientation: orientacion },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h3', '.pa-pdf-graf', '.kpi'] },
     }));

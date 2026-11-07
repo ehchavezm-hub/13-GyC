@@ -803,12 +803,14 @@ async function exportarPDF({ soloDatos = false } = {}) {
     // Tipografía (q66): celdas y encabezados 6,5 pt Manrope, interlineado 1,1; títulos de proceso 10 pt
     let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; font-size: 10pt; }
       .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
-      table.pa-pdf-prog { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: 'Manrope', sans-serif; font-size: 6.5pt; line-height: 1.1; }
+      table.pa-pdf-prog { width: calc(100% - 0.6mm); border: .75pt solid #E0E0E0; table-layout: fixed; border-collapse: collapse; font-family: 'Manrope', sans-serif; font-size: 6.5pt; line-height: 1.1; }
       table.pa-pdf-prog th, table.pa-pdf-prog td { font-size: 6.5pt; line-height: 1.1; padding: 1mm 1mm; vertical-align: top; text-align: left;
-        hyphens: manual; -webkit-hyphens: manual; word-break: normal; overflow-wrap: break-word; }
+        hyphens: manual; -webkit-hyphens: manual; word-break: normal; overflow-wrap: normal; }
       table.pa-pdf-prog th { font-weight: 700; color: #003366; white-space: normal; }
       table.pa-pdf-prog td.f, table.pa-pdf-prog td.n { white-space: nowrap; }
-      table.pa-pdf-prog .n { text-align: right; }</style>`;
+      table.pa-pdf-prog .n { text-align: right; }
+      table.pa-pdf-prog tr > :last-child { border-right: .75pt solid #E0E0E0; }   /* q67: línea derecha de Comentarios siempre visible */
+      table.pa-pdf-prog tr > :first-child { border-left: .75pt solid #E0E0E0; }</style>`;
     cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
       ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
       ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
@@ -833,8 +835,33 @@ async function exportarPDF({ soloDatos = false } = {}) {
     // hoja; la descripción toma todo el resto. Sirve en horizontal (277 mm útiles) y en vertical (190 mm) sin salirse.
     const ANCHO = { It: '6mm', Area: '18mm', Aplica: '10mm', 'Resp.': '14mm', 'Inicio prog.': '14mm', 'Fin prog.': '14mm',
       'Fecha rev.': '14mm', '% Ava. Acu.': '10mm', 'Fin re-prog.': '14mm', Estado: '11.5mm', Comentarios: '12%' };
-    const tablaPrograma = (cols, filas) => `<table class="pa-pdf-prog"><colgroup>${cols.map(c =>
-        `<col${ANCHO[c.titulo] ? ` style="width:${ANCHO[c.titulo]}"` : ''}>`).join('')}</colgroup>
+    // q67: ninguna palabra se corta. Cada columna mide al menos su palabra más larga (encabezado y todas las filas del
+    // programa, 6,5 pt Manrope, medida en el navegador) más el margen interno; los mismos anchos en todas las tablas.
+    await document.fonts?.load?.('400 6.5pt Manrope').catch(() => {});
+    await document.fonts?.load?.('700 6.5pt Manrope').catch(() => {});
+    const lienzo = document.createElement('canvas').getContext('2d');
+    const anchoTexto = (t, negrita) => { lienzo.font = `${negrita ? 700 : 400} 6.5pt Manrope, Arial, sans-serif`; return lienzo.measureText(t).width * 25.4 / 96; };
+    let minimos = null;
+    const anchoCol = (c, cols) => {
+      if (!minimos) {
+        minimos = {};
+        for (const k of cols) {
+          if (k.titulo === 'Descripción de actividad') continue;
+          let max = Math.max(...k.titulo.split(/\s+/).map(w => anchoTexto(w, true)));
+          for (const i of items) {
+            const v = String(k.valor(i) ?? '');
+            for (const w of (k.fecha || k.num ? [v] : v.split(/\s+/))) max = Math.max(max, anchoTexto(w, !!k.estilo));
+          }
+          minimos[k.titulo] = Math.min(Math.ceil((max + 2.6) * 10) / 10, k.titulo === 'Comentarios' ? 40 : 60);   // + margen interno (2 mm) y holgura
+        }
+      }
+      const base = ANCHO[c.titulo], min = minimos[c.titulo];
+      if (!base) return '';
+      if (base.endsWith('%')) return `max(${base}, ${min}mm)`;
+      return `${Math.max(parseFloat(base), min || 0)}mm`;
+    };
+    const tablaPrograma = (cols, filas) => `<table class="pa-pdf-prog"><colgroup>${cols.map(c => {
+        const w = anchoCol(c, cols); return `<col${w ? ` style="width:${w}"` : ''}>`; }).join('')}</colgroup>
       <thead><tr>${cols.map(c => `<th class="${c.num ? 'n' : ''}">${esc(c.titulo)}</th>`).join('')}</tr></thead>
       <tbody>${filas.map(f => `<tr>${cols.map(c => `<td class="${c.fecha ? 'f' : c.num ? 'n' : ''}"${c.estilo ? ` style="${esc(c.estilo(f))}"` : ''}>${esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const COLOR_ESTADO = { terminado: '--verde', atrasado: '--peligro', por_vencer: '--arena', en_curso: '--azul', por_iniciar: '--gris-texto', sin_definir: '--gris-texto-2', no_aplica: '--gris-texto-2' };

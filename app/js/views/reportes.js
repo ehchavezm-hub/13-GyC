@@ -5,7 +5,7 @@ import { api, mensajeError } from '../data/api.js';
 import { store, on, proyecto, etiqueta, textoEstado, esStaff } from '../core/store.js';
 import { esc, html, fmtFecha, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
-import { tablaPDF, documentoReporte, nombreArchivo, limpiarNombre, PAPELES } from '../services/pdf.js';
+import { tablaPDF, documentoReporte, nombreArchivo, limpiarNombre, guardarPDF, PAPELES } from '../services/pdf.js';
 
 // ---------- Catálogo de reportes ----------
 const REPORTES = [
@@ -57,7 +57,8 @@ export async function render(el) {
         <label><input type="checkbox" data-o="unaHoja"> Todo en 1 hoja</label>
         <label class="archivo">📁 <input data-o="archivo"></label>
         <span class="flex"></span>
-        <button class="btn btn-primario btn-sm" data-a="pdf">🖨 Guardar PDF</button>
+        <button class="btn btn-sm" data-a="imprimir" title="Abrir el diálogo de impresión (papel)">🖨 Imprimir</button>
+        <button class="btn btn-primario btn-sm" data-a="pdf" title="Descargar el PDF con el nombre indicado">⬇ Guardar PDF</button>
       </div>
       <div class="reportes-hojas"><iframe data-prev title="Presentación preliminar"></iframe><div class="cargando oculto" data-carg><span class="spinner"></span> Generando…</div></div>
     </div></div>`);
@@ -76,10 +77,18 @@ export async function render(el) {
   tituloApp ??= document.title;
   pag.querySelector('[data-o="archivo"]').addEventListener('input', fijarTitulo);
   pag.querySelector('[data-prev]').addEventListener('load', fijarTitulo);
-  pag.querySelector('[data-a="pdf"]').addEventListener('click', () => {
+  pag.querySelector('[data-a="imprimir"]').addEventListener('click', () => {
     const f = pag.querySelector('[data-prev]');
     fijarTitulo();
     f.contentWindow.focus(); f.contentWindow.print();
+  });
+  // q69: el PDF se genera y se descarga con el nombre exacto del campo (no depende del diálogo de impresión)
+  pag.querySelector('[data-a="pdf"]').addEventListener('click', async e => {
+    const rep = disponibles.find(r => r.id === estado.id) || disponibles[0];
+    try {
+      await guardarPDF(e.currentTarget, rep.titulo, ultimoHTML, { papel: pag.querySelector('[data-o="papel"]').value,
+        orientacion: estado.orientacion || rep.orientacion, unaHoja: pag.querySelector('[data-o="unaHoja"]').checked, archivo: nombrePDF() });
+    } catch (err) { error(mensajeError(err)); }
   });
   desuscribir.forEach(f => f()); desuscribir = [];
   desuscribir.push(on('proyecto', () => generar()));
