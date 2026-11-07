@@ -83,6 +83,7 @@ export async function render(el) {
     <div class="pagina-cab"><h1>Ficha del proyecto</h1><span class="proy-badge">${esc(p.codigo)} · ${esc(p.nombre_corto)}</span>
       <span class="flex"></span>
       ${editable ? '<button class="btn" data-a="importar" title="Cargar la pestaña «0.Ficha del proyecto» del formato CR-PG-SGP-01-F1">⬆ Importar Excel</button>' : ''}
+      <button class="btn" data-a="exportar" title="Descargar la ficha en la pestaña «0.Ficha del proyecto» (se puede volver a importar)">⬇ Exportar Excel</button>
       <button class="btn" data-a="pdf">⬇ PDF</button></div>
     <div data-cabecera></div>
     <div class="ficha-grid">
@@ -100,6 +101,7 @@ export async function render(el) {
   f.wrap = wrap;
   pintarTodo(f);
   wrap.querySelector('[data-a="importar"]')?.addEventListener('click', () => importarExcel(f).catch(e => mostrarError(mensajeError(e))));
+  wrap.querySelector('[data-a="exportar"]').addEventListener('click', () => exportarExcel(f).catch(e => mostrarError(mensajeError(e))));
   wrap.querySelector('[data-a="pdf"]').onclick = () => pdfFicha(f).catch(e => mostrarError(mensajeError(e)));
 }
 
@@ -214,6 +216,10 @@ function pintarAlcance(f) {
     [{ name: 'alcance', label: 'Alcance del proyecto', type: 'textarea', rows: 16 }], pintarAlcance));
 }
 
+// Clave para reconocer una fila estándar aunque se escriba distinto (tildes, mayúsculas, puntos o una vocal de más o
+// de menos, p. ej. «Ing. Planeamento» = «Ing. Planeamiento»)
+const claveEstandar = t => normalizar(t || '').replace(/[aeiou\s.,;:()\-/&]/g, '');
+
 // ── Tablas editables (volúmenes y organización): se editan en la tabla y se guardan juntas ─────
 
 function tablaEditable(f, opts) {
@@ -222,9 +228,9 @@ function tablaEditable(f, opts) {
   // Sin filas guardadas se muestran las sugeridas por defecto (p. ej. los cargos del formato), por completar
   // Con completarEstandar, además de las guardadas se muestran las estándar que falten (p. ej. los cargos del formato)
   const k = opts.claveEstandar || 'cargo';
-  const hayYa = new Set(guardadas.map(r => normalizar(r[k] || '')));
+  const hayYa = new Set(guardadas.map(r => claveEstandar(r[k])));
   const sugeridas = opts.porDefecto && (!guardadas.length || opts.completarEstandar)
-    ? opts.porDefecto().filter(r => !hayYa.has(normalizar(r[k]))).map(r => ({ ...r, _sugerida: true })) : [];
+    ? opts.porDefecto().filter(r => !hayYa.has(claveEstandar(r[k]))).map(r => ({ ...r, _sugerida: true })) : [];
   const filas = [...guardadas, ...sugeridas];
   const s = sec(f, seccion);
   const editando = s.dataset.editando === '1';
@@ -265,8 +271,8 @@ function tablaEditable(f, opts) {
   s.querySelector('[data-estandar]')?.addEventListener('click', () => {
     leer();
     const k = opts.claveEstandar || 'cargo';
-    const hay = new Set(borrador.map(r => normalizar(r[k] || '')));
-    const faltan = (opts.porDefecto?.() || []).filter(r => !hay.has(normalizar(r[k])));
+    const hay = new Set(borrador.map(r => claveEstandar(r[k])));
+    const faltan = (opts.porDefecto?.() || []).filter(r => !hay.has(claveEstandar(r[k])));
     if (!faltan.length) { ok('Ya están todas las filas estándar.'); return; }
     borrador.push(...faltan);
     tablaEditable(f, opts);
@@ -526,6 +532,50 @@ async function importarExcel(f) {
   }
   ok('Ficha del proyecto importada.');
   pintarTodo(f);
+}
+
+// ── Exportar la ficha al Excel (pestaña "0.Ficha del proyecto", mismos rótulos del formato) ──────────
+async function exportarExcel(f) {
+  const XLSX = await libExcel();
+  const { p } = f;
+  const fecha = v => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`) : null);
+  const n = v => (v == null || v === '' ? null : Number(v));
+  // Lo mismo que se ve en pantalla: lo guardado y, si faltan, las filas estándar (volúmenes si está vacío; cargos siempre)
+  const volumenes = f.volumenes.length ? f.volumenes : VOLUMENES_ESTANDAR.map(([descripcion, unidad]) => ({ descripcion, unidad }));
+  const hay = new Set(f.staff.map(r => claveEstandar(r.cargo)));
+  const staff = [...f.staff, ...CARGOS_ESTANDAR.filter(c => !hay.has(claveEstandar(c))).map(cargo => ({ cargo }))];
+  const fila = (etiqueta, valor, extra) => [`${etiqueta}:`, valor ?? null, ...(extra ? [extra] : [])];
+  const filas = [
+    [], ['FICHA DEL PROYECTO'], [],
+    fila('Nombre del Proyecto', nombreDe(p)), fila('CeBe', p.cebe), fila('CR', p.cr), fila('Unidad de Negocios', p.unidad_negocio),
+    fila('Ubicación', p.ubicacion), fila('País', p.pais), fila('Tipo de Proyecto', p.tipo_proyecto), fila('Cliente', p.cliente),
+    fila('Supervisión', p.supervision), fila('Inicio programado', fecha(p.inicio_contractual)), fila('Fin programado', fecha(p.fin_contractual)),
+    fila('Inicio real', fecha(p.inicio_real)), fila('Fin real', fecha(p.fin_real)),
+    fila('Fecha inicio de movilización', fecha(p.fecha_movilizacion)), fila('Fecha inicio de construcción', fecha(p.fecha_construccion)),
+    fila('Modalidad de Ejecución', p.modalidad_ejecucion), fila('Sistema de Contratación', p.sistema_contratacion),
+    fila('Presupuesto Inicial', n(p.presupuesto_inicial), p.moneda || 'US$'),
+    fila('Presupuesto Final (Incluye todos los cambios)', n(p.presupuesto_final), p.moneda || 'US$'),
+    [], ['Alcance del Proyecto:'], [p.alcance || null], [],
+    ['Volúmenes Principales', 'Cantidad Inicial', 'Cantidad final', 'Unidad de Medida'],
+    ...volumenes.map(r => (r.es_titulo ? [r.descripcion] : [r.descripcion, n(r.cantidad_inicial), n(r.cantidad_final), r.unidad || null])),
+    [],
+    ['Cargo', 'Responsable principal', 'Contraturno y/o reemplazo'],
+    ...staff.map(r => [r.cargo, r.principal || null, r.reemplazo || null]),
+  ];
+  const hoja = XLSX.utils.aoa_to_sheet(filas, { cellDates: true, dateNF: 'dd/mm/yyyy' });
+  hoja['!cols'] = [{ wch: 48 }, { wch: 60 }, { wch: 30 }, { wch: 18 }];
+  // Fechas con formato dd/mm/aaaa y montos con separador de miles
+  for (const [ref, celda] of Object.entries(hoja)) {
+    if (ref.startsWith('!')) continue;
+    if (celda.t === 'd') celda.z = 'dd/mm/yyyy';
+    else if (celda.t === 'n') celda.z = '#,##0.##';
+  }
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, '0.Ficha del proyecto');
+  const proy = [p.codigo, p.nombre_corto].filter(Boolean).join(' ');
+  const d = new Date(), hoyTxt = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  XLSX.writeFile(libro, `${proy}_Ficha del proyecto_${hoyTxt}.xlsx`.replace(/[\\/:*?"<>|]+/g, ' '), { cellDates: true });
+  ok(f.fotos.length ? 'Ficha exportada a Excel (las fotos no se incluyen en el Excel; están en el PDF).' : 'Ficha exportada a Excel.');
 }
 
 // ── PDF de la ficha ───────────────────────────────────────────────────────────
