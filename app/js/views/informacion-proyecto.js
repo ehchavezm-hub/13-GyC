@@ -220,11 +220,15 @@ function tablaEditable(f, opts) {
   const { seccion, titulo, columnas, vacio, nueva, guardar, extraBotones = '' } = opts;
   const guardadas = opts.filas();   // siempre el estado actual
   // Sin filas guardadas se muestran las sugeridas por defecto (p. ej. los cargos del formato), por completar
-  const sugeridas = !guardadas.length && opts.porDefecto ? opts.porDefecto() : [];
-  const filas = guardadas.length ? guardadas : sugeridas;
+  // Con completarEstandar, además de las guardadas se muestran las estándar que falten (p. ej. los cargos del formato)
+  const k = opts.claveEstandar || 'cargo';
+  const hayYa = new Set(guardadas.map(r => normalizar(r[k] || '')));
+  const sugeridas = opts.porDefecto && (!guardadas.length || opts.completarEstandar)
+    ? opts.porDefecto().filter(r => !hayYa.has(normalizar(r[k]))).map(r => ({ ...r, _sugerida: true })) : [];
+  const filas = [...guardadas, ...sugeridas];
   const s = sec(f, seccion);
   const editando = s.dataset.editando === '1';
-  const celda = (c, r) => (c.render ? c.render(r) : esc(r[c.name] ?? '')) || (sugeridas.length && c.editar !== false ? '<span class="nota">por completar</span>' : '');
+  const celda = (c, r) => (c.render ? c.render(r) : esc(r[c.name] ?? '')) || (r._sugerida && c.editar !== false ? '<span class="nota">por completar</span>' : '');
   if (!editando) {
     s.innerHTML = `${cab(titulo, f)}${sugeridas.length ? `<p class="nota" style="margin:-4px 0 8px">${opts.avisoPorDefecto || 'Filas sugeridas: complete y guarde.'}</p>` : ''}
       ${filas.length ? `<div class="admin-tabla-wrap"><table class="simple ficha-tabla"><thead><tr>${columnas.map(c => `<th class="${c.num ? 'num' : ''}">${c.label}</th>`).join('')}</tr></thead>
@@ -340,7 +344,8 @@ function pintarStaff(f) {
   tablaEditable(f, {
     seccion: 'staff', titulo: 'Organización del proyecto', filas: () => f.staff,
     porDefecto: () => CARGOS_ESTANDAR.map(cargo => ({ cargo, principal: '', reemplazo: '' })),
-    avisoPorDefecto: 'Cargos estándar del formato: pulse «✎ Editar» para registrar los responsables (puede agregar o quitar cargos).',
+    completarEstandar: true,   // siempre se ven los 19 cargos del formato (los que falten, por completar)
+    avisoPorDefecto: 'Los cargos «por completar» son los estándar del formato: pulse «✎ Editar» para registrar sus responsables (puede agregar o quitar cargos).',
     extraBotones: ' <button class="btn btn-sm" data-estandar title="Agrega los cargos estándar que no estén en la lista">＋ Agregar cargos estándar</button>',
     vacio: 'Aún no se registra la organización del proyecto.',
     columnas: [{ name: 'cargo', label: 'Cargo' }, { name: 'principal', label: 'Responsable principal' }, { name: 'reemplazo', label: 'Contraturno y/o reemplazo' }],
