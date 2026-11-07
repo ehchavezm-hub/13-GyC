@@ -273,7 +273,7 @@ function pintarStaff(f) {
   tablaEditable(f, {
     seccion: 'staff', titulo: 'Organización del proyecto', filas: () => f.staff,
     vacio: 'Aún no se registra la organización del proyecto.',
-    columnas: [{ name: 'cargo', label: 'Cargo' }, { name: 'principal', label: 'Principal' }, { name: 'reemplazo', label: 'Contraturno y/o reemplazo' }],
+    columnas: [{ name: 'cargo', label: 'Cargo' }, { name: 'principal', label: 'Responsable principal' }, { name: 'reemplazo', label: 'Contraturno y/o reemplazo' }],
     nueva: () => ({ cargo: '', principal: '', reemplazo: '' }),
     guardar: async filas => {
       for (const r of filas) if (!String(r.cargo || '').trim()) throw new Error('Cada fila debe tener un cargo.');
@@ -372,7 +372,7 @@ export function leerFichaExcel(XLSX, libro) {
     const f = filas[i] || [], vacia = f.every(v => v == null || String(v).trim() === '');
     const k0 = clave(f[0]);
     if (k0 === 'volumenesprincipales' || (k0.startsWith('volumen') && clave(f[1]).startsWith('cantidad'))) { modo = 'vol'; continue; }
-    if (k0 === 'cargo' && clave(f[1]).startsWith('principal')) { modo = 'staff'; continue; }
+    if (k0 === 'cargo' && clave(f[1]).includes('principal')) { modo = 'staff'; continue; }   // «Principal» o «Responsable principal»
     if (modo === 'vol') {
       if (vacia) { if (volumenes.length) modo = null; continue; }
       const sinDatos = [f[1], f[2], f[3]].every(v => v == null || v === '');
@@ -481,7 +481,7 @@ async function pdfFicha(f) {
       <tr><th>Descripción</th><th class="num">Cantidad inicial</th><th class="num">Cantidad final</th><th>Unidad</th></tr>
       ${f.volumenes.map(r => r.es_titulo ? `<tr class="sub"><td colspan="4">${esc(r.descripcion)}</td></tr>`
         : `<tr><td>${esc(r.descripcion)}</td><td class="num">${num(r.cantidad_inicial)}</td><td class="num">${num(r.cantidad_final)}</td><td>${esc(r.unidad || '')}</td></tr>`).join('')}</table></div>` : ''}
-    ${f.staff.length ? `<div class="${f.staff.length <= 30 ? 'pdf-bloque' : ''}"><h2>Organización del proyecto</h2><table><tr><th>Cargo</th><th>Principal</th><th>Contraturno y/o reemplazo</th></tr>
+    ${f.staff.length ? `<div class="${f.staff.length <= 30 ? 'pdf-bloque' : ''}"><h2>Organización del proyecto</h2><table><tr><th>Cargo</th><th>Responsable principal</th><th>Contraturno y/o reemplazo</th></tr>
       ${f.staff.map(r => `<tr><td>${esc(r.cargo)}</td><td>${esc(r.principal || '')}</td><td>${esc(r.reemplazo || '')}</td></tr>`).join('')}</table></div>` : ''}
     ${f.fotos.length ? (() => {
       // Dos fotos por fila; el título va en un mismo bloque con la primera fila (no queda solo al pie de una hoja)
