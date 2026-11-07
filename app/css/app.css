@@ -725,3 +725,14 @@ button.pa-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(2
 .pa-kpi .pa-kpi-val, .pa-kpi-avance .pa-kpi-val { font-family: inherit; font-size: 13px; font-weight: 800; line-height: 1.3; }
 .pa-kpi .pa-kpi-lbl { font-size: 13px; line-height: 1.3; }
 .pa-kpi { gap: 6px; padding: 12px 14px; }
+/* Ancho de columnas editable con el mouse (como Excel) */
+.pa-tabla { table-layout: fixed; width: auto; }
+.pa-tabla td, .pa-tabla th { overflow: hidden; overflow-wrap: anywhere; }
+.pa-tabla .c-act, .pa-tabla .c-resp, .pa-tabla .c-com, .pa-tabla .c-av, .pa-tabla .c-fecha, .pa-tabla .c-est, .pa-tabla .c-cod,
+.pa-tabla .c-dur, .pa-tabla .c-mas { width: auto; min-width: 0; max-width: none; }
+.pa-tabla thead th { position: sticky; }
+.pa-resize { position: absolute; top: 0; right: -4px; width: 9px; height: 100%; cursor: col-resize; z-index: 4; }
+.pa-resize::after { content: ''; position: absolute; top: 20%; bottom: 20%; left: 4px; width: 1px; background: var(--borde); }
+.pa-resize:hover::after, .pa-resize.activo::after { top: 0; bottom: 0; width: 3px; left: 3px; background: var(--naranja); }
+body.pa-redimensionando, body.pa-redimensionando * { cursor: col-resize !important; user-select: none !important; }
+.pa-resp-n { max-width: calc(100% - 40px); }

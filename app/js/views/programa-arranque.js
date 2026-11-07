@@ -18,6 +18,32 @@ const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin programado = Inicio p
 const PROXIMOS_DIAS = 14;          // "por vencer": fin vigente dentro de 14 días
 
 let estado = {};
+
+// Columnas de cada vista con su ancho por defecto (px). El ancho se cambia arrastrando el borde del encabezado,
+// como en Excel; doble clic en el borde lo restablece. Se recuerda por vista en este navegador.
+const COLUMNAS = {
+  seguimiento: [
+    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Actividad', w: 330 }, { k: 'resp', txt: 'Responsable', w: 150 },
+    { k: 'finv', txt: 'Fin vigente', w: 100 }, { k: 'est', txt: 'Estado', w: 110 },
+    { k: 'av', txt: '% Avance acumulado', w: 135, cls: 'seg' }, { k: 'com', txt: 'Comentario de la reunión', w: 190, cls: 'seg' },
+    { k: 'finr', txt: 'Fin re-programado', w: 105, cls: 'seg' }, { k: 'mas', txt: '', w: 44, fija: true },
+  ],
+  definicion: [
+    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Actividad', w: 380 }, { k: 'resp', txt: 'Responsable', w: 160, cls: 'def' },
+    { k: 'ini', txt: 'Inicio programado', w: 112, cls: 'def' }, { k: 'fin', txt: 'Fin programado', w: 112, cls: 'def' },
+    { k: 'dur', txt: 'Duración', w: 80 }, { k: 'com', txt: 'Comentarios', w: 250, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
+  ],
+};
+const ANCHO_MIN = 40;
+const claveAnchos = modo => `gyc-arr-anchos-${modo}`;
+function anchos(modo) {
+  let guardados = {};
+  try { guardados = JSON.parse(localStorage.getItem(claveAnchos(modo)) || '{}'); } catch { /* sin almacenamiento */ }
+  return COLUMNAS[modo].map(c => Math.max(ANCHO_MIN, Number(guardados[c.k]) || c.w));
+}
+function guardarAnchos(modo, lista) {
+  try { localStorage.setItem(claveAnchos(modo), JSON.stringify(Object.fromEntries(COLUMNAS[modo].map((c, i) => [c.k, lista[i]])))); } catch { /* opcional */ }
+}
 const filtros = { texto: '', proceso: '', resp: '', oblig: false, estado: '' };
 const plegados = new Set();
 const leerModo = () => { try { return localStorage.getItem('gyc-arr-modo'); } catch { return null; } };
@@ -219,12 +245,10 @@ function pintarTabla() {
   }
   const ncols = seg ? 9 : 8;
 
-  const cab = seg
-    ? `<tr><th class="c-cod">Ítem</th><th>Actividad</th><th class="c-resp">Responsable</th><th class="c-fecha">Fin vigente</th>
-        <th class="c-est">Estado</th><th class="c-av seg">% Avance acumulado</th><th class="c-com seg">Comentario de la reunión</th>
-        <th class="c-fecha seg">Fin re-programado</th><th class="c-mas"></th></tr>`
-    : `<tr><th class="c-cod">Ítem</th><th>Actividad</th><th class="c-resp def">Responsable</th><th class="c-fecha def">Inicio programado</th>
-        <th class="c-fecha def">Fin programado</th><th class="c-dur">Duración</th><th class="c-com def">Comentarios</th><th class="c-mas"></th></tr>`;
+  const modo = seg ? 'seguimiento' : 'definicion';
+  const cols = COLUMNAS[modo], ws = anchos(modo);
+  const colgroup = `<colgroup>${ws.map(w => `<col style="width:${w}px">`).join('')}</colgroup>`;
+  const cab = `<tr>${cols.map((c, n) => `<th class="${c.cls || ''}">${esc(c.txt)}${c.fija ? '' : `<span class="pa-resize" data-col="${n}" title="Arrastre para cambiar el ancho · doble clic: ancho original"></span>`}</th>`).join('')}</tr>`;
 
   const fila = i => {
     const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c);
@@ -269,10 +293,12 @@ function pintarTabla() {
   }).join('');
 
   const tabla = estado.wrap.querySelector('[data-tabla]');
-  tabla.innerHTML = `<table class="pa-tabla ${seg ? 'modo-seg' : 'modo-def'}"><thead>${cab}</thead>
+  tabla.innerHTML = `<table class="pa-tabla ${seg ? 'modo-seg' : 'modo-def'}" style="width:${ws.reduce((a, b) => a + b, 0)}px">${colgroup}<thead>${cab}</thead>
     ${cuerpo || `<tbody><tr><td colspan="${ncols}" class="pa-sin">No hay ítems con estos filtros.</td></tr></tbody>`}</table>
     <p class="pa-pie">${items.length} de ${estado.items.length} ítems${estado.editable ? ' · Haga clic en una celda para editarla; «›» abre la ficha del ítem con su historial.' : ' · Solo lectura.'}</p>`;
+  activarRedimension(tabla, modo);
   tabla.onclick = e => {
+    if (e.target.closest('.pa-resize')) return;
     const g = e.target.closest('[data-grupo]');
     if (g) { const p = g.dataset.grupo; plegados.has(p) ? plegados.delete(p) : plegados.add(p); pintarTabla(); return; }
     const f = e.target.closest('[data-ficha]');
@@ -280,6 +306,42 @@ function pintarTabla() {
     const td = e.target.closest('[data-editable]');
     if (td && !td.querySelector('input,select')) editarCelda(td);
   };
+}
+
+// ── Ancho de columnas con el mouse (como Excel) ───────────────────────────────
+
+function activarRedimension(tabla, modo) {
+  const t = tabla.querySelector('table');
+  const cols = [...t.querySelectorAll('col')];
+  const total = () => cols.reduce((s, c) => s + parseFloat(c.style.width), 0);
+  tabla.querySelectorAll('.pa-resize').forEach(asa => {
+    const n = Number(asa.dataset.col);
+    asa.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const x0 = e.pageX, w0 = parseFloat(cols[n].style.width);
+      asa.classList.add('activo');
+      document.body.classList.add('pa-redimensionando');
+      const mover = ev => {
+        cols[n].style.width = `${Math.max(ANCHO_MIN, Math.round(w0 + ev.pageX - x0))}px`;
+        t.style.width = `${total()}px`;
+      };
+      const soltar = () => {
+        document.removeEventListener('mousemove', mover);
+        document.removeEventListener('mouseup', soltar);
+        asa.classList.remove('activo');
+        document.body.classList.remove('pa-redimensionando');
+        guardarAnchos(modo, cols.map(c => parseFloat(c.style.width)));
+      };
+      document.addEventListener('mousemove', mover);
+      document.addEventListener('mouseup', soltar);
+    });
+    asa.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      cols[n].style.width = `${COLUMNAS[modo][n].w}px`;
+      t.style.width = `${total()}px`;
+      guardarAnchos(modo, cols.map(c => parseFloat(c.style.width)));
+    });
+  });
 }
 
 // ── Edición en la celda ───────────────────────────────────────────────────────
