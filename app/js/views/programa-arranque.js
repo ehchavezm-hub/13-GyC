@@ -68,6 +68,7 @@ export async function render(el) {
     <div class="pa-cab">
       <h1>Programa de Arranque</h1><span class="proy-badge">${esc(nombreSeleccion())}</span>
       <span class="flex"></span>
+      <button class="btn" data-a="pdf" title="Programa de arranque con su último avance y la Curva S">⬇ PDF</button>
       ${estado.editable ? '<button class="btn" data-a="importar" title="Cargar un Excel con el formato CR-PG-SGP-01-F1">⬆ Importar Excel</button>' : ''}
       <button class="btn" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
@@ -77,6 +78,7 @@ export async function render(el) {
   </div>`);
   el.append(wrap);
   wrap.querySelector('[data-a="excel"]').addEventListener('click', () => exportarExcel().catch(e => mostrarError(mensajeError(e))));
+  wrap.querySelector('[data-a="pdf"]').addEventListener('click', () => exportarPDF().catch(e => mostrarError(mensajeError(e))));
   wrap.querySelector('[data-a="importar"]')?.addEventListener('click', () => importarExcel().catch(e => mostrarError(mensajeError(e))));
   estado.wrap = wrap;
 
@@ -749,6 +751,95 @@ async function importarExcel() {
   ok(`Importado: ${defs.length} ítems y ${segs.length} registros de seguimiento.`);
   await cargarDatos(estado.proyId);
   pintarTodo();
+}
+
+// ── PDF: programa completo con su último avance y la Curva S ──────────────────
+
+/** Curva S como imagen (PNG) para el PDF. */
+async function imagenCurva(c) {
+  const Chart = await libGraficos();
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const lienzo = Object.assign(document.createElement('canvas'), { width: 1100, height: 380 });
+  const g = new Chart(lienzo, {
+    type: 'line',
+    data: { labels: c.eje.map(fmtFecha), datasets: [
+      { label: 'Programado', data: c.programado, borderColor: css('--azul'), backgroundColor: css('--azul'), borderWidth: 2, pointRadius: 0, tension: 0.25 },
+      { label: 'Real', data: c.real, borderColor: css('--naranja'), backgroundColor: css('--naranja'), borderWidth: 3, pointRadius: 4, spanGaps: true, tension: 0.2 },
+    ] },
+    options: { responsive: false, animation: false, devicePixelRatio: 2,
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => `${v}%` } }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } } },
+      plugins: { legend: { position: 'bottom' } } },
+  });
+  const url = g.toBase64Image('image/png', 1);
+  g.destroy();
+  return url;
+}
+
+async function exportarPDF() {
+  const { imprimirPDF, tablaPDF, kpisPDF } = await import('../services/pdf.js');
+  // Todo el programa (sin filtros) a la fecha de la última reunión registrada
+  const guardado = { reunion: estado.reunion, filtros: { ...filtros } };
+  Object.assign(filtros, { texto: '', proceso: '', resp: '', aplica: '', estado: '' });
+  estado.reunion = estado.reuniones.at(-1) || estado.reunion;
+  try {
+    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const items = estado.items, apl = items.filter(i => aplica(i.item_codigo)), n = apl.length || 1;
+    const cuenta = k => apl.filter(i => estadoDe(i.item_codigo) === k).length;
+    const avance = Math.round(apl.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / n);
+    const c = datosCurva();
+    const prog = c ? (c.programado[c.eje.indexOf(estado.reunion)] ?? 0) : 0;
+    const real = c?.reuniones.at(-1)?.r ?? 0;
+    const desv = Math.round((real - prog) * 10) / 10;
+    const fecha = estado.reuniones.length ? fmtFecha(estado.reunion) : 'sin reuniones de seguimiento';
+    // Cada título de proceso queda en la misma hoja que el comienzo de su tabla
+    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 14px; }
+      .pa-pdf-proc { break-inside: avoid-page; } .pa-pdf-proc table { break-before: avoid; }</style>`;
+    cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
+      ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
+      ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
+      ['En curso', String(cuenta('en_curso')), css('--azul')], ['Sin definir', String(cuenta('sin_definir')), css('--plata')],
+      ['N/A', String(items.length - apl.length), css('--plata')],
+      ['Programado', `${prog}%`, css('--azul')], ['Real', `${real}%`, css('--naranja')],
+      ['Desviación', `${desv > 0 ? '+' : ''}${desv} pts`, desv < 0 ? css('--peligro') : css('--verde')],
+      ['Índice', prog > 0 ? (real / prog).toFixed(2) : '—', css('--navy')],
+    ]);
+    if (c && estado.reuniones.length) {
+      cuerpo += `<h2>Curva S</h2><img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain">`;
+      cuerpo += tablaPDF([
+        { titulo: 'Fecha rev.', valor: x => fmtFecha(x.f), fecha: true }, { titulo: '% Programado', valor: x => `${x.p}%`, num: true },
+        { titulo: '% Real', valor: x => `${x.r}%`, num: true },
+        { titulo: 'Desviación', valor: x => { const d = Math.round((x.r - x.p) * 10) / 10; return `${d > 0 ? '+' : ''}${d}`; }, num: true },
+        { titulo: 'Índice', valor: x => (x.p > 0 ? (x.r / x.p).toFixed(2) : '—'), num: true },
+      ], c.reuniones.slice().reverse());
+    }
+    const COLOR_ESTADO = { terminado: '--verde', atrasado: '--peligro', por_vencer: '--arena', en_curso: '--azul', por_iniciar: '--gris-texto', sin_definir: '--gris-texto-2', no_aplica: '--gris-texto-2' };
+    const columnas = [
+      { titulo: 'It', valor: i => i.item_codigo, ancho: 28 },
+      { titulo: 'Area', valor: i => i.area_lider, ancho: 80 },
+      { titulo: 'Descripción de actividad', valor: i => i.descripcion, ancho: 260 },
+      { titulo: 'Aplica', valor: i => (aplica(i.item_codigo) ? 'Si' : 'N/A'), ancho: 36 },
+      { titulo: 'Resp.', valor: i => respDe(i.item_codigo) || '', ancho: 80 },
+      { titulo: 'Inicio prog.', valor: i => (det(i.item_codigo).inicio_programado ? fmtFecha(det(i.item_codigo).inicio_programado) : ''), fecha: true },
+      { titulo: 'Fin prog.', valor: i => (det(i.item_codigo).fin_programado ? fmtFecha(det(i.item_codigo).fin_programado) : ''), fecha: true },
+      { titulo: 'Fecha rev.', valor: i => (segVigente(i.item_codigo)?.fecha_revision ? fmtFecha(segVigente(i.item_codigo).fecha_revision) : ''), fecha: true },
+      { titulo: '% Ava. Acu.', valor: i => (aplica(i.item_codigo) ? `${avanceDe(i.item_codigo)}%` : ''), num: true, ancho: 46 },
+      { titulo: 'Fin re-prog.', valor: i => (segVigente(i.item_codigo)?.fin_reprogramado ? fmtFecha(segVigente(i.item_codigo).fin_reprogramado) : ''), fecha: true },
+      { titulo: 'Estado', valor: i => ESTADOS[estadoDe(i.item_codigo)].txt, ancho: 54, estilo: i => `color:${css(COLOR_ESTADO[estadoDe(i.item_codigo)])};font-weight:700` },
+      { titulo: 'Comentarios', valor: i => segVigente(i.item_codigo)?.comentarios || det(i.item_codigo).comentarios || '', ancho: 140 },
+    ];
+    for (const proceso of [...new Set(items.map(i => i.proceso))]) {
+      const del = items.filter(i => i.proceso === proceso), a = del.filter(i => aplica(i.item_codigo));
+      const prom = a.length ? Math.round(a.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / a.length) : 0;
+      const tabla = tablaPDF(columnas, del);
+      const titulo = `<h3>${esc(proceso)} · ${a.filter(i => avanceDe(i.item_codigo) >= 100).length}/${a.length} terminados · ${prom}%</h3>`;
+      // Procesos cortos: título y tabla juntos; los largos pueden partirse, pero el título no queda solo al pie
+      cuerpo += del.length <= 12 ? `<div class="pa-pdf-proc">${titulo}${tabla}</div>` : titulo + tabla;
+    }
+    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion() });
+  } finally {
+    estado.reunion = guardado.reunion;
+    Object.assign(filtros, guardado.filtros);
+  }
 }
 
 // ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
