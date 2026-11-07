@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#1A1A2E">
+  <meta name="robots" content="noindex">
+  <title>Registro de asistencia · GyC</title>
+  <link rel="icon" href="img/icono.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Página pública del registro de asistencia por QR (w1). No usa Clerk: el enlace secreto del acta autoriza solo
+       el registro de asistencia, y solo mientras el administrador la tenga abierta. Colores: paleta Tableau. -->
+  <style>
+    :root { --navy: #003366; --naranja: #E8762B; --verde: #59A14F; --peligro: #E74C3C; --borde: #E0E0E0;
+            --texto: #1A1A2E; --texto-2: #555555; --fondo: #F8FAFC; --oscuro: #1A1A2E; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Manrope', system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
+    header { background: var(--oscuro); color: #FFFFFF; padding: 14px 16px; font-weight: 800; font-size: 18px; }
+    header span { color: var(--naranja); }
+    main { max-width: 520px; margin: 0 auto; padding: 16px; }
+    .tarjeta { background: #FFFFFF; border: 1px solid var(--borde); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+    h1 { font-size: 17px; color: var(--navy); margin: 0 0 4px; }
+    .nota { color: var(--texto-2); font-size: 13px; margin: 0; }
+    label { display: block; font-size: 13px; font-weight: 700; color: var(--texto-2); margin: 12px 0 4px; }
+    input { width: 100%; padding: 11px 12px; border: 1px solid var(--borde); border-radius: 8px; font: inherit; font-size: 16px; background: #FFFFFF; }
+    .firma { position: relative; border: 1px dashed var(--texto-2); border-radius: 8px; background: #FFFFFF; touch-action: none; }
+    .firma canvas { display: block; width: 100%; height: 170px; border-radius: 8px; }
+    .firma .limpiar { position: absolute; right: 8px; top: 8px; border: 1px solid var(--borde); background: #FFFFFF; border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; }
+    button.enviar { width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 8px; background: var(--naranja); color: #FFFFFF; font: inherit; font-size: 16px; font-weight: 700; }
+    button.enviar:disabled { opacity: .6; }
+    .error { color: var(--peligro); font-weight: 600; margin-top: 10px; }
+    .ok { text-align: center; padding: 28px 16px; }
+    .ok b { display: block; font-size: 20px; color: var(--verde); margin-bottom: 6px; }
+    .oculto { display: none; }
+  </style>
+</head>
+<body>
+  <header>Gy<span>C</span> · Registro de asistencia</header>
+  <main>
+    <div class="tarjeta" id="acta"><p class="nota">Cargando…</p></div>
+    <form class="tarjeta oculto" id="form" novalidate>
+      <label for="dni">DNI o documento *</label><input id="dni" name="dni" inputmode="numeric" autocomplete="off" maxlength="20" required>
+      <label for="nombres">Nombres *</label><input id="nombres" name="nombres" autocomplete="given-name" maxlength="120" required>
+      <label for="apellidos">Apellidos *</label><input id="apellidos" name="apellidos" autocomplete="family-name" maxlength="120" required>
+      <label for="cargo">Cargo</label><input id="cargo" name="cargo" autocomplete="organization-title" maxlength="120">
+      <label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" maxlength="120">
+      <label>Firma *</label>
+      <div class="firma"><canvas id="lienzo" aria-label="Recuadro para firmar"></canvas><button type="button" class="limpiar" id="limpiar">Borrar</button></div>
+      <p class="nota" style="margin-top:6px">Firme con el dedo dentro del recuadro.</p>
+      <div class="error" id="error" role="alert"></div>
+      <button class="enviar" id="enviar" type="submit">Registrar asistencia</button>
+    </form>
+    <div class="tarjeta ok oculto" id="listo"><b>✓ Asistencia registrada</b><p class="nota">Gracias. Ya puede cerrar esta página.</p></div>
+  </main>
+  <script>
+    const t = new URLSearchParams(location.search).get('t') || '';
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const fmt = f => (f ? String(f).slice(0, 10).split('-').reverse().join('/') : '');
+    // Lo escrito se recuerda en este teléfono para la próxima reunión (no la firma)
+    const CAMPOS = ['dni', 'nombres', 'apellidos', 'cargo', 'empresa'];
+    try { const g = JSON.parse(localStorage.getItem('gyc-asistente') || '{}'); CAMPOS.forEach(c => { if (g[c]) $(c).value = g[c]; }); } catch {}
+
+    // Firma con el dedo o el mouse
+    const lienzo = $('lienzo'), cx = lienzo.getContext('2d');
+    let trazos = 0, dibujando = false;
+    const ajustar = () => { const r = lienzo.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+      lienzo.width = r.width * k; lienzo.height = r.height * k; cx.scale(k, k); cx.lineWidth = 2.2; cx.lineCap = 'round'; cx.lineJoin = 'round'; cx.strokeStyle = '#1A1A2E'; trazos = 0; };
+    // Funciona con puntero (teléfonos y navegadores actuales), con toque (navegadores antiguos) y con mouse;
+    // el primero que empieza el trazo lo controla, así no se dibuja dos veces
+    let fuente = null;
+    const xy = (x, y) => { const r = lienzo.getBoundingClientRect(); return [x - r.left, y - r.top]; };
+    const iniciar = (f, x, y) => { if (fuente && fuente !== f) return; fuente = f; dibujando = true; cx.beginPath(); cx.moveTo(...xy(x, y)); };
+    const mover = (f, x, y) => { if (!dibujando || fuente !== f) return; cx.lineTo(...xy(x, y)); cx.stroke(); trazos++; };
+    const terminar = f => { if (fuente === f) { dibujando = false; fuente = null; } };
+    lienzo.addEventListener('pointerdown', e => { iniciar('p', e.clientX, e.clientY); try { lienzo.setPointerCapture(e.pointerId); } catch {} });
+    lienzo.addEventListener('pointermove', e => mover('p', e.clientX, e.clientY));
+    ['pointerup', 'pointercancel'].forEach(n => lienzo.addEventListener(n, () => terminar('p')));
+    lienzo.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; iniciar('t', t.clientX, t.clientY); }, { passive: false });
+    lienzo.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; mover('t', t.clientX, t.clientY); }, { passive: false });
+    ['touchend', 'touchcancel'].forEach(n => lienzo.addEventListener(n, () => terminar('t')));
+    lienzo.addEventListener('mousedown', e => iniciar('m', e.clientX, e.clientY));
+    addEventListener('mousemove', e => mover('m', e.clientX, e.clientY));
+    addEventListener('mouseup', () => terminar('m'));
+    $('limpiar').onclick = () => { cx.clearRect(0, 0, lienzo.width, lienzo.height); trazos = 0; };
+
+    // Firma recortada y reducida (PNG liviano para el acta)
+    function firmaPNG() {
+      const k = window.devicePixelRatio || 1, w = lienzo.width, h = lienzo.height, datos = cx.getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = 0, y1 = 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (datos[(y * w + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 <= x0 || y1 <= y0) return null;
+      const m = 6 * k; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(w, x1 + m); y1 = Math.min(h, y1 + m);
+      const escala = Math.min(1, 360 / (x1 - x0), 120 / (y1 - y0));
+      const out = document.createElement('canvas'); out.width = Math.round((x1 - x0) * escala); out.height = Math.round((y1 - y0) * escala);
+      out.getContext('2d').drawImage(lienzo, x0, y0, x1 - x0, y1 - y0, 0, 0, out.width, out.height);
+      return out.toDataURL('image/png');
+    }
+
+    async function cargar() {
+      try {
+        const r = await fetch('/api/asistencia?t=' + encodeURIComponent(t));
+        const a = await r.json();
+        if (!r.ok) throw new Error(a.error || 'Enlace no válido.');
+        $('acta').innerHTML = `<h1>${esc(a.asunto)}</h1><p class="nota">${esc(a.proyecto)} · Reunión N° ${esc(a.numero)}${a.tipo ? ' · ' + esc(a.tipo) : ''}</p>
+          <p class="nota">${fmt(a.fecha)}${a.hora ? ' · ' + esc(String(a.hora).slice(0, 5)) : ''}</p>`;
+        if (!a.abierta) { $('acta').insertAdjacentHTML('beforeend', '<p class="error">El registro de asistencia está cerrado.</p>'); return; }
+        $('form').classList.remove('oculto'); ajustar();
+      } catch (e) { $('acta').innerHTML = `<p class="error">${esc(e.message)}</p>`; }
+    }
+    addEventListener('resize', () => { if (!trazos) ajustar(); });
+
+    $('form').addEventListener('submit', async e => {
+      e.preventDefault(); $('error').textContent = '';
+      const d = Object.fromEntries(CAMPOS.map(c => [c, $(c).value.trim()]));
+      if (!d.dni || !d.nombres || !d.apellidos) { $('error').textContent = 'Complete DNI, nombres y apellidos.'; return; }
+      const firma = trazos > 2 ? firmaPNG() : null;
+      if (!firma) { $('error').textContent = 'Firme en el recuadro.'; return; }
+      $('enviar').disabled = true; $('enviar').textContent = 'Registrando…';
+      try {
+        const r = await fetch('/api/asistencia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t, ...d, firma }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'No se pudo registrar.');
+        try { localStorage.setItem('gyc-asistente', JSON.stringify(d)); } catch {}
+        $('form').classList.add('oculto'); $('listo').classList.remove('oculto');
+      } catch (err) { $('error').textContent = err.message; $('enviar').disabled = false; $('enviar').textContent = 'Registrar asistencia'; }
+    });
+    cargar();
+  </script>
+</body>
+</html>

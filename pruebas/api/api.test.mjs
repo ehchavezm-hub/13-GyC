@@ -13,6 +13,7 @@ import { usarVerificador, usarClerk } from '../../api/_lib/auth.js';
 import datos from '../../api/datos.js';
 import admin from '../../api/admin-usuarios.js';
 import correo, { usarEnvio } from '../../api/enviar-correo.js';
+import asistencia from '../../api/asistencia.js';
 import { semillaEmpresa } from '../../app/js/data/catalogos.js';
 
 configurarTipos(pg.types);   // igual que en producción (api/_lib/db.js)
@@ -35,6 +36,7 @@ before(async () => {
     await c.query(migracion('038_administracion_tres_niveles.sql'));
     await c.query(migracion('039_paleta_tableau.sql'));
     await c.query(migracion('040_aplica.sql'));
+    await c.query(migracion('041_actas.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {
@@ -378,4 +380,54 @@ test('enviar por correo: solo administradores del proyecto y solo a sus miembros
     const b2 = await llamar(correo, 'user_admin', { ...base, modo: 'borrador', de: 'user_lider', para: ['user_lider'] });
     assert.equal(b2.de, 'lider@ejemplo.com');
   } finally { usarEnvio(null); }
+});
+
+test('actas de reunión: administrador, redactores designados, registro por QR y acta cerrada', async () => {
+  await pool.query(`UPDATE profiles SET activo = true, eliminado = false, rol = 'lider' WHERE id = 'user_lider'`);   // otras pruebas lo desactivan
+  const [p] = await A.insert('proyectos', { codigo: 'ACTA', nombre_corto: 'Actas', estado: 'activo' });
+  await A.insert('proyecto_lideres', [{ proyecto_id: p.id, usuario_id: 'user_lider', rol: 'miembro' }]);
+  // Solo el administrador del proyecto crea actas
+  await assert.rejects(B.insert('actas', { proyecto_id: p.id, numero: 1, asunto: 'X', fecha: lunes }), /administrador del proyecto crea/);
+  const [acta] = await A.insert('actas', { proyecto_id: p.id, numero: 1, asunto: 'Kick off', fecha: lunes });
+  assert.ok(/^[a-f0-9]{36}$/.test(acta.token_asistencia));
+  // Un miembro sin designación no edita; designado como redactor, sí (pero no se da más permisos ni cierra el acta)
+  await assert.rejects(B.update('actas', acta.id, { asunto: 'Y' }), /ya no existe/);
+  await assert.rejects(B.insert('acta_acuerdos', { acta_id: acta.id, item: 1, acuerdo: 'A' }), /no pertenece/);
+  await A.update('actas', acta.id, { redactores: ['user_lider'] });
+  assert.equal((await B.update('actas', acta.id, { asunto: 'Kick off meeting' })).asunto, 'Kick off meeting');
+  await assert.rejects(B.update('actas', acta.id, { redactores: ['user_lider', 'user_consulta'] }), /Solo el administrador/);
+  await assert.rejects(B.update('actas', acta.id, { estado: 'cerrada' }), /Solo el administrador/);
+  const [ac] = await B.insert('acta_acuerdos', { acta_id: acta.id, item: 1, acuerdo: 'Presentación del proyecto', estado: 'Abierto' });
+  await assert.rejects(B.update('acta_acuerdos', ac.id, { estado: 'Pendiente' }), /check/i);
+  // Registro por QR (página pública, sin cuenta): solo con la asistencia abierta, con firma y DNI válido
+  const pedir = async (method, body, t) => {
+    let estado = 200, json;
+    const res = { setHeader() {}, status(s) { estado = s; return res; }, json(j) { json = j; return res; } };
+    await asistencia({ method, url: `/api/asistencia?t=${t ?? ''}`, body }, res);
+    return { estado, json };
+  };
+  const firma = 'data:image/png;base64,iVBORw0KGgo=';
+  const persona = { t: acta.token_asistencia, dni: '41072243', nombres: 'Fanny', apellidos: 'Muro', cargo: 'JOT', empresa: 'Cosapi', firma };
+  assert.equal((await pedir('GET', undefined, 'abc')).estado, 404);                       // enlace inválido
+  assert.equal((await pedir('GET', undefined, acta.token_asistencia)).json.abierta, false);
+  assert.equal((await pedir('POST', persona)).estado, 409);                                // asistencia cerrada
+  await B.update('actas', acta.id, { asistencia_abierta: true });                          // un redactor la abre
+  const g = await pedir('GET', undefined, acta.token_asistencia);
+  assert.equal(g.json.abierta, true); assert.equal(g.json.asunto, 'Kick off meeting'); assert.equal(g.json.token_asistencia, undefined);
+  assert.equal((await pedir('POST', { ...persona, firma: null })).estado, 400);            // sin firma
+  assert.equal((await pedir('POST', { ...persona, firma: 'data:text/html;base64,PHNjcmlwdD4=' })).estado, 400);
+  assert.equal((await pedir('POST', { ...persona, dni: '1 2' })).estado, 400);
+  assert.equal((await pedir('POST', { ...persona, t: 'f'.repeat(36) })).estado, 404);      // token ajeno
+  assert.equal((await pedir('POST', persona)).json.nuevo, true);
+  assert.equal((await pedir('POST', { ...persona, nombres: '<b>Fanny</b> Milagro' })).json.nuevo, false);   // el mismo DNI actualiza
+  const asis = await A.list('acta_asistentes', { eq: { acta_id: acta.id } });
+  assert.equal(asis.length, 1);
+  assert.ok(!asis[0].nombres.includes('<') && asis[0].nombres.includes('Milagro'));    // sin marcas HTML
+  // Acta cerrada: no cambia asistentes ni acuerdos y no acepta registros por QR
+  await A.update('actas', acta.id, { estado: 'cerrada', asistencia_abierta: false });
+  await assert.rejects(A.update('acta_acuerdos', ac.id, { estado: 'Cerrado' }), /acta está cerrada/);
+  await assert.rejects(A.remove('acta_asistentes', asis[0].id).then(async () => { if ((await A.list('acta_asistentes', { eq: { acta_id: acta.id } })).length) throw new Error('acta está cerrada'); }), /acta está cerrada/);
+  assert.equal((await pedir('POST', persona)).estado, 409);
+  // N° de reunión único por proyecto
+  await assert.rejects(A.insert('actas', { proyecto_id: p.id, numero: 1, asunto: 'Otra', fecha: lunes }), /duplicate|único|unique/i);
 });

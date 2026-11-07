@@ -1,6 +1,6 @@
 // Service worker de GyC: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
 // La versión cambia en cada publicación para que los usuarios reciban la última versión.
-const VERSION = 'gyc-v1.9.6';
+const VERSION = 'gyc-v1.10.0';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -30,6 +30,7 @@ const ARCHIVOS = [
   'js/views/en-blanco.js',
   'js/views/informacion-proyecto.js',
   'js/views/programa-arranque.js',
+  'js/views/actas.js',
   'js/views/plan.js',
   'js/views/proyectos.js',
   'js/views/restricciones.js',
@@ -52,6 +53,7 @@ const ARCHIVOS = [
   'vendor/tabulator.min.css',
   'vendor/tabulator.min.js',
   'vendor/xlsx.full.min.js',
+  'vendor/qrcode.js',
   'img/icono-192.png',
   'img/icono-512.png',
   'img/icono.svg',

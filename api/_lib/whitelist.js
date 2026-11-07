@@ -58,6 +58,16 @@ export const ALCANCE = {
     escribir: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
   },
   programa_arranque_items: { leer: 'TRUE', escribir: null },
+  // Actas de reunión (w1): se leen en la empresa; las edita el administrador del proyecto o un redactor designado
+  actas: { leer: PROYECTO_DE_EMPRESA, escribir: `${PROYECTO_DE_EMPRESA} AND (administra_proyecto(:U, proyecto_id) OR :U = ANY(redactores))` },
+  acta_asistentes: {
+    leer: 'acta_id IN (SELECT a.id FROM actas a JOIN proyectos p ON p.id = a.proyecto_id WHERE p.area_id = :A)',
+    escribir: 'acta_id IN (SELECT a.id FROM actas a JOIN proyectos p ON p.id = a.proyecto_id WHERE p.area_id = :A) AND edita_acta(:U, acta_id)',
+  },
+  acta_acuerdos: {
+    leer: 'acta_id IN (SELECT a.id FROM actas a JOIN proyectos p ON p.id = a.proyecto_id WHERE p.area_id = :A)',
+    escribir: 'acta_id IN (SELECT a.id FROM actas a JOIN proyectos p ON p.id = a.proyecto_id WHERE p.area_id = :A) AND edita_acta(:U, acta_id)',
+  },
 
   // Personas
   notificaciones: { leer: 'usuario_id = :U', escribir: 'usuario_id = :U' },

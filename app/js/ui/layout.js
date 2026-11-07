@@ -16,6 +16,7 @@ export const NAV = [
   { ruta: '/lookahead', ico: icono('objetivo'), texto: 'Plan de gestión', si: esStaff },
   { ruta: '/backlog', ico: icono('capas'), texto: 'Plan de construcción', si: esStaff },
   { ruta: '/cartera', ico: icono('archivo'), texto: 'Programa de cierre', si: () => esStaff() || puede('crear_solicitud') },
+  { ruta: '/actas', ico: icono('acta'), texto: 'Acta de reunión', si: esStaff, prefijo: '/actas' },
   { grupo: 'Seguimiento' },
   { ruta: '/tablero', ico: icono('grafico'), texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
   { ruta: '/reunion', ico: icono('usuarios'), texto: 'Reunión semanal', si: esStaff },

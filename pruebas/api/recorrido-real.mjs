@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:8098/';
 const RUTAS = ['/plan', '/lookahead', '/backlog', '/restricciones', '/cartera', '/tablero', '/reunion',
   '/informacion-proyecto', '/programa-arranque', '/proyectos', '/config/usuarios', '/config/listas', '/config/parametros', '/config/permisos',
-  '/config/columnas', '/config/importar', '/config/respaldo', '/config/auditoria', '/config/empresas', '/reportes', '/admin'];
+  '/config/columnas', '/config/importar', '/config/respaldo', '/config/auditoria', '/config/empresas', '/reportes', '/actas', '/admin'];
 // Pantallas retiradas del menú (pedidos a5 y a6): no deben aparecer
 const RETIRADAS = ['Plantillas', 'Ayuda', 'Mejoras del aplicativo', 'Equipo y capacidad', 'Todas las empresas'];
 
