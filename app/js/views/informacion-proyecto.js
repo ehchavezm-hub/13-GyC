@@ -224,7 +224,7 @@ function tablaEditable(f, opts) {
   const filas = guardadas.length ? guardadas : sugeridas;
   const s = sec(f, seccion);
   const editando = s.dataset.editando === '1';
-  const celda = (c, r) => c.render ? c.render(r) : (esc(r[c.name] ?? '') || (sugeridas.length ? '<span class="nota">por completar</span>' : ''));
+  const celda = (c, r) => (c.render ? c.render(r) : esc(r[c.name] ?? '')) || (sugeridas.length && c.editar !== false ? '<span class="nota">por completar</span>' : '');
   if (!editando) {
     s.innerHTML = `${cab(titulo, f)}${sugeridas.length ? `<p class="nota" style="margin:-4px 0 8px">${opts.avisoPorDefecto || 'Filas sugeridas: complete y guarde.'}</p>` : ''}
       ${filas.length ? `<div class="admin-tabla-wrap"><table class="simple ficha-tabla"><thead><tr>${columnas.map(c => `<th class="${c.num ? 'num' : ''}">${c.label}</th>`).join('')}</tr></thead>
@@ -260,12 +260,13 @@ function tablaEditable(f, opts) {
   s.querySelector('[data-agregar]').onclick = () => { leer(); borrador.push(nueva()); tablaEditable(f, opts); s.querySelector('tbody tr:last-child input')?.focus(); };
   s.querySelector('[data-estandar]')?.addEventListener('click', () => {
     leer();
-    const hay = new Set(borrador.map(r => normalizar(r.cargo || '')));
-    const faltan = (opts.porDefecto?.() || []).filter(r => !hay.has(normalizar(r.cargo)));
-    if (!faltan.length) { ok('Ya están todos los cargos estándar.'); return; }
+    const k = opts.claveEstandar || 'cargo';
+    const hay = new Set(borrador.map(r => normalizar(r[k] || '')));
+    const faltan = (opts.porDefecto?.() || []).filter(r => !hay.has(normalizar(r[k])));
+    if (!faltan.length) { ok('Ya están todas las filas estándar.'); return; }
     borrador.push(...faltan);
     tablaEditable(f, opts);
-    ok(`${faltan.length} cargo(s) estándar agregado(s).`);
+    ok(`${faltan.length} fila(s) estándar agregada(s).`);
   });
   s.querySelector('[data-subtitulo]')?.addEventListener('click', () => { leer(); borrador.push({ ...nueva(), es_titulo: true }); tablaEditable(f, opts); s.querySelector('tbody tr:last-child input')?.focus(); });
   s.querySelector('tbody').addEventListener('click', e => {
@@ -296,6 +297,12 @@ async function reemplazarFilas(tabla, proyId, filas) {
   return api.insert(tabla, filas.map((r, i) => { const { id, created_at, updated_at, ...resto } = r; void id; void created_at; void updated_at; return { ...resto, proyecto_id: proyId, orden: i + 1 }; }));
 }
 
+// Volúmenes principales sugeridos (guía del formato CR-PG-SGP-01-F1 r1): descripción y unidad; las cantidades se completan
+const VOLUMENES_ESTANDAR = [['Excavación Localizada en Roca', 'm3'], ['Concreto armado f´c=280 kg/cm2', 'm3'],
+  ['Insertos (Planchas, barras, ángulos, fierro liso)', 'kg'], ['Estructura metálica (Incl. Desmontaje)', 'kg'],
+  ['Bombas verticales Turbina. 932KW / 1250HP. W 12.5tn', 'Und'], ['Tubería de acero al carbono', 'm'],
+  ['Cables de Cu, CMT, BT, FO, AAC, Control e Instrumentación', 'm'], ['Horas hombre', 'HH'], ['Horas máquina', 'HM']];
+
 function pintarVolumenes(f) {
   const variacion = r => {
     if (r.cantidad_inicial == null || r.cantidad_final == null || r.cantidad_inicial === '' || r.cantidad_final === '') return '';
@@ -309,7 +316,10 @@ function pintarVolumenes(f) {
       { name: 'cantidad_final', label: 'Cantidad final', num: true, render: r => num(r.cantidad_final) },
       { name: 'variacion', label: 'Variación', num: true, editar: false, render: variacion }, { name: 'unidad', label: 'Unidad' }],
     nueva: () => ({ descripcion: '', cantidad_inicial: '', cantidad_final: '', unidad: '', es_titulo: false }),
-    extraBotones: ' <button class="btn btn-sm" data-subtitulo>＋ Agregar subtítulo</button>',
+    porDefecto: () => VOLUMENES_ESTANDAR.map(([descripcion, unidad]) => ({ descripcion, unidad, cantidad_inicial: '', cantidad_final: '', es_titulo: false })),
+    claveEstandar: 'descripcion',
+    avisoPorDefecto: 'Volúmenes de guía del formato: pulse «✎ Editar» para registrar las cantidades (puede cambiar, agregar o quitar filas).',
+    extraBotones: ' <button class="btn btn-sm" data-subtitulo>＋ Agregar subtítulo</button> <button class="btn btn-sm" data-estandar title="Agrega los volúmenes de guía que no estén en la lista">＋ Agregar volúmenes estándar</button>',
     guardar: async filas => {
       for (const r of filas) if (!String(r.descripcion || '').trim()) throw new Error('Cada fila debe tener una descripción.');
       const limpias = filas.map(r => ({ id: r.id, descripcion: String(r.descripcion).trim(), es_titulo: !!r.es_titulo, unidad: r.es_titulo ? null : (r.unidad || null),
