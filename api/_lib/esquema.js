@@ -23,11 +23,19 @@ async function cargar() {
   return mapa;
 }
 
+// Migración que crea cada tabla agregada después de la 035 (para que el aviso diga cuál ejecutar)
+const MIGRACION_DE = {
+  actas: '041_actas.sql', acta_asistentes: '041_actas.sql', acta_acuerdos: '041_actas.sql',
+  programa_arranque: '037_programa_arranque_r1.sql', programa_arranque_items: '037_programa_arranque_r1.sql',
+  programa_arranque_detalle: '037_programa_arranque_r1.sql', programa_arranque_seguimiento: '037_programa_arranque_r1.sql',
+  cuentas_preasignadas: '036_cuentas_preasignadas.sql',
+};
+
 export async function columnas(tabla) {
   if (!_cache) _cache = cargar().catch(e => { _cache = null; throw e; });
   const mapa = await _cache;
   const cols = mapa.get(tabla);
-  if (!cols) throw new Error(`La tabla ${tabla} no existe en la base. Ejecute las migraciones 000 y 035 en Neon.`);
+  if (!cols) throw new Error(`La tabla ${tabla} no existe en la base. Ejecute en el SQL Editor de Neon la migración ${MIGRACION_DE[tabla] || 'pendiente de db/migrations (en orden)'}.`);
   return cols;
 }
 
