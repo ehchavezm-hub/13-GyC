@@ -124,6 +124,12 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   await pagina.waitForTimeout(1200);
   if (!(await pagina.locator('.pa-curva canvas').count())) errores.push('curva S: no se dibujó el gráfico');
   if (!(await pagina.locator('.pa-curva-res').innerText().catch(() => '')).includes('Programado')) errores.push('curva S: falta el resumen');
+  // PDF (q34): vista previa con la Curva S y las tablas por proceso
+  await pagina.locator('[data-a="pdf"]').click();
+  await pagina.waitForTimeout(1500);
+  const docPdf = await pagina.locator('.vista-pdf iframe').evaluate(f => f.srcdoc).catch(() => '');
+  if (!docPdf.includes('Curva S') || (docPdf.match(/<h3>/g) || []).length < 10) errores.push('PDF: no incluye la Curva S o los procesos');
+  await pagina.keyboard.press('Escape');
   await pagina.locator('[data-modo="definicion"]').click();
   // Aplica (lista Si / N/A): el ítem opcional 6 parte en N/A y se cambia a Si
   if (!(await pagina.locator('[data-item-row="6"] [data-campo="aplica"]').innerText()).includes('N/A')) errores.push('programa de arranque: el ítem opcional 6 no parte en N/A');
