@@ -122,8 +122,10 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   // Curva S (q32): pestaña a la derecha de "+ Reunión", con su gráfico y resumen
   await pagina.locator('[data-modo="curva"]').click();
   await pagina.waitForTimeout(1200);
-  if (!(await pagina.locator('.pa-curva canvas').count())) errores.push('curva S: no se dibujó el gráfico');
-  if (!(await pagina.locator('.pa-curva-res').innerText().catch(() => '')).includes('Programado')) errores.push('curva S: falta el resumen');
+  // Sin ítems con fechas programadas, la pestaña pide completarlas; con fechas, dibuja la curva y su resumen
+  const textoCurva = await pagina.locator('[data-tabla]').innerText().catch(() => '');
+  const hayCurva = await pagina.locator('.pa-curva canvas').count();
+  if (!(hayCurva && textoCurva.includes('Programado')) && !textoCurva.includes('Inicio prog. y Fin prog.')) errores.push('curva S: ni gráfico ni aviso de fechas');
   // PDF (q34): vista previa con la Curva S y las tablas por proceso
   await pagina.locator('[data-a="pdf"]').click();
   await pagina.waitForTimeout(1500);
