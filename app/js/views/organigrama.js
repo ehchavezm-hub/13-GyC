@@ -303,7 +303,7 @@ export function informeEquipo(nodos) {
     { titulo: 'Código', ancho: 70, valor: p => p.codigo || '' },
     { titulo: 'Cargo', ancho: 220, valor: p => (p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '') },
     { titulo: 'Correo', ancho: 165, valor: p => p.email || '' },
-    { titulo: 'Rol', ancho: 150, html: true, valor: p => `<span class="badge" style="--c:${COLOR_ROL[p.rol] || '#4E79A7'}">${esc(ROLES[p.rol] || p.rol)}</span>` },
+    { titulo: 'Rol-empresa', ancho: 150, html: true, valor: p => `<span class="badge" style="--c:${COLOR_ROL[p.rol] || '#4E79A7'}">${esc(ROLES[p.rol] || p.rol)}</span>` },
     { titulo: 'Gerencias (consulta)', ancho: 230, valor: p => (p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', ') },
     { titulo: 'H/día', ancho: 50, num: true, valor: p => p.horas_dia ?? '—' },
     { titulo: 'Estado', ancho: 60, valor: p => (p.activo ? 'Activo' : 'Inactivo') },

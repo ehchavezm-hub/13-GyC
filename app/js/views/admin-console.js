@@ -237,9 +237,9 @@ async function panelResumen(el) {
   </div>
   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
     <div class="tarjeta" style="flex:1;min-width:260px;padding:16px">
-      <h3 style="margin:0 0 10px">Usuarios por rol</h3>
+      <h3 style="margin:0 0 10px">Usuarios por Rol-empresa</h3>
       <table class="simple">
-        <thead><tr><th>Rol</th><th>Cantidad</th></tr></thead>
+        <thead><tr><th>Rol-empresa</th><th>Cantidad</th></tr></thead>
         <tbody>
           ${Object.entries(contPorRol).map(([r, c]) => `<tr>
             <td>${badge(rolLabel(r), COLOR_ROL[r] || '#777777')}</td>

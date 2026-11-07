@@ -400,8 +400,8 @@ async function accionUsuario(t) {
   if (t.dataset.rol) {
     return pedirDatos({
       titulo: `Rol de ${u.nombre}${nomEmp ? ` en ${nomEmp}` : ''}`, valores: { rol: u.rol },
-      campos: [{ name: 'rol', label: 'Rol', type: 'select', required: true, full: true, options: Object.entries(ROLES).map(([value, label]) => ({ value, label })) }],
-      alGuardar: async d => { await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, area_id: area, rol: d.rol }); ok('Rol actualizado.'); },
+      campos: [{ name: 'rol', label: 'Rol-empresa', type: 'select', required: true, full: true, options: Object.entries(ROLES).map(([value, label]) => ({ value, label })) }],
+      alGuardar: async d => { await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, area_id: area, rol: d.rol }); ok('Rol-empresa actualizado.'); },
     });
   }
   if (!await confirmar(`¿${u.activo ? 'Desactivar' : 'Activar'} a ${u.nombre}${nomEmp ? ` en ${nomEmp}` : ''}?`, { texto: u.activo ? 'Desactivar' : 'Activar', peligro: u.activo })) return false;
@@ -419,7 +419,7 @@ async function nuevoUsuario(areaId) {
       { name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) },
       { name: 'nombre', label: 'Nombre', required: true },
       { name: 'email', label: 'Correo', type: 'email', required: true },
-      { name: 'rol', label: 'Rol', type: 'select', required: true, options: Object.entries(ROLES).filter(([k]) => k !== 'pendiente').map(([value, label]) => ({ value, label })) },
+      { name: 'rol', label: 'Rol-empresa', type: 'select', required: true, options: Object.entries(ROLES).filter(([k]) => k !== 'pendiente').map(([value, label]) => ({ value, label })) },
       { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', type: 'password', required: true },
     ],
     alGuardar: async d => {
