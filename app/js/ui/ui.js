@@ -108,7 +108,9 @@ export function crearFormulario(campos, valores = {}) {
       }
       case 'multiselect': {
         const sel = new Set(v || []);
-        control = `<div class="multi${c.unaColumna ? ' una-columna' : ''}" id="${id}" data-name="${c.name}">${(c.options || []).map(o =>
+        // c.todos: casilla «Seleccionar todos» al inicio de la lista (marca o desmarca todas las opciones)
+        control = `<div class="multi${c.unaColumna ? ' una-columna' : ''}" id="${id}" data-name="${c.name}">${c.todos && (c.options || []).length > 1
+          ? `<label class="chk chk-todos"><input type="checkbox" data-todos> <span>Seleccionar todos</span><span class="nota" data-todos-n></span></label>` : ''}${(c.options || []).map(o =>
           `<label class="chk"><input type="checkbox" value="${esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}> <span>${esc(o.label)}</span>${o.nota ? `<span class="nota">${esc(o.nota)}</span>` : ''}</label>`).join('')}</div>`; break;
       }
       case 'checkbox':
@@ -121,13 +123,26 @@ export function crearFormulario(campos, valores = {}) {
     f.append(html(`<div class="campo${c.full || c.type === 'textarea' || c.type === 'multiselect' ? ' campo-full' : ''}">
       <label for="${id}">${esc(c.label)}${c.required ? ' <span class="req">*</span>' : ''}</label>${control}
       ${c.help ? `<small>${esc(c.help)}</small>` : ''}</div>`));
+    if (c.type === 'multiselect' && c.todos) {
+      const caja = f.querySelector(`[data-name="${c.name}"]`), todos = caja.querySelector('[data-todos]');
+      const opciones = () => [...caja.querySelectorAll('input:not([data-todos])')];
+      const sincronizar = () => {
+        const n = opciones().filter(i => i.checked).length, total = opciones().length;
+        if (!todos) return;
+        todos.checked = n === total; todos.indeterminate = n > 0 && n < total;
+        caja.querySelector('[data-todos-n]').textContent = `${n} de ${total}`;
+      };
+      todos?.addEventListener('change', () => { opciones().forEach(i => { i.checked = todos.checked; }); sincronizar(); });
+      caja.addEventListener('change', e => { if (!e.target.matches('[data-todos]')) sincronizar(); });
+      sincronizar();
+    }
   }
   f.leer = () => {
     const out = {};
     for (const c of campos) {
       if (c.type === 'separador' || c.type === 'vacio') continue;
       if (c.type === 'multiselect') {
-        out[c.name] = [...f.querySelectorAll(`[data-name="${c.name}"] input:checked`)].map(i => i.value);
+        out[c.name] = [...f.querySelectorAll(`[data-name="${c.name}"] input:not([data-todos]):checked`)].map(i => i.value);
         continue;
       }
       const el = f.elements[c.name];

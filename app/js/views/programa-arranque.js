@@ -868,7 +868,7 @@ async function exportarPDF({ soloDatos = false } = {}) {
           lista_por_vencer: apl.filter(i => estadoDe(i.item_codigo) === 'por_vencer').map(fila) },
       };
     }
-    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion() });
+    imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo: nombreArchivoPA(fecha) });
   } finally {
     estado.reunion = guardado.reunion;
     Object.assign(filtros, guardado.filtros);
@@ -886,26 +886,28 @@ async function enviarPorCorreo() {
     throw new Error('El proyecto no tiene miembros con correo. Agréguelos en Administración → Nivel 3 · Miembros del proyecto.');
   }
   const p = proyecto(estado.proyId) || {};
-  const fecha = estado.reuniones.length ? fmtFecha(estado.reuniones.at(-1)) : fmtFecha(hoy());
+  // El resumen se calcula antes de abrir el formulario: con él se arma el mensaje por defecto (q46)
+  const informe = await exportarPDF({ soloDatos: true });
+  const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
   const d = await pedirDatos({
     titulo: 'Enviar por correo', texto: 'Enviar', ancho: 640,
     antes: `Se enviará en nombre de <b>${esc(store.usuario.nombre)}</b>: las respuestas le llegarán a ${esc(store.usuario.email || 'su correo')}.
       Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
     campos: [
-      { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true,
+      { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true, todos: true,
         options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
       { name: 'asunto', label: 'Asunto', required: true, full: true },
-      { name: 'mensaje', label: 'Mensaje (opcional)', type: 'textarea', rows: 3 },
-      { name: 'copia', label: 'Copia', type: 'checkbox', texto: 'Enviarme una copia' },
+      { name: 'mensaje', label: 'Mensaje', type: 'textarea', rows: 12 },
+      { name: 'copia', label: 'Copia', type: 'checkbox', texto: 'Enviarme una copia', full: true },
     ],
-    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`, copia: true },
+    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`, copia: true,
+      mensaje: mensajePorDefecto(p, informe.resumen, fecha) },
     alGuardar: async v => { if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.'); },
   });
   if (!d) return;
   ok('Preparando el PDF y enviando…');
   const { generarArchivoPDF } = await import('../services/pdf.js');
-  const informe = await exportarPDF({ soloDatos: true });
-  const archivo = `CR-PG-SGP-01-F1 Programa de Arranque ${p.codigo || ''} ${informe.fecha.replaceAll('/', '-')}`;
+  const archivo = nombreArchivoPA(informe.fecha);
   const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
   const r = await api.enviarCorreo({
     proyecto_id: estado.proyId, para: d.para, copia: !!d.copia, asunto: d.asunto, mensaje: d.mensaje || '',
@@ -913,6 +915,48 @@ async function enviarPorCorreo() {
     pdf, pdf_nombre: `${archivo}.pdf`, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
   });
   ok(`Correo enviado a ${r.enviados} miembro${r.enviados === 1 ? '' : 's'} del proyecto.`);
+}
+
+/** Nombre del PDF (q48): Proyecto_Programa de arranque_DD-MM-AAAA (fecha del avance) */
+function nombreArchivoPA(fecha) {
+  const p = proyecto(estado.proyId) || {};
+  const proy = [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
+  const f = /^\d{2}\/\d{2}\/\d{4}$/.test(fecha) ? fecha.replaceAll('/', '-') : fmtFecha(hoy()).replaceAll('/', '-');
+  return `${proy}_Programa de arranque_${f}`.replace(/[\\/:*?"<>|]+/g, ' ');
+}
+
+/** Mensaje inicial del correo (editable): datos del proyecto y estado del programa de arranque (q46) */
+function mensajePorDefecto(p, r, fecha) {
+  const f = v => (v ? fmtFecha(v) : '—');
+  const desv = `${r.desviacion > 0 ? '+' : ''}${r.desviacion} pts`;
+  const lineas = [
+    'Estimado equipo:',
+    '',
+    `Les comparto el Programa de Arranque del proyecto ${[p.codigo, p.nombre_completo || p.nombre_corto].filter(Boolean).join(' · ')} con el avance al ${fecha}.`,
+    '',
+    // Solo los datos del proyecto que estén registrados (Información del proyecto)
+    ...(() => {
+      const datos = [
+        p.cr && `• CR: ${p.cr}`,
+        (p.inicio_contractual || p.fin_contractual) && `• Plazo contractual: ${f(p.inicio_contractual)} al ${f(p.fin_contractual)}`,
+        p.fecha_movilizacion && `• Inicio de movilización: ${f(p.fecha_movilizacion)}`,
+        p.fecha_construccion && `• Inicio de construcción: ${f(p.fecha_construccion)}`,
+      ].filter(Boolean);
+      return datos.length ? ['Datos del proyecto', ...datos, ''] : [];
+    })(),
+    'Estado del Programa de Arranque',
+    `• Avance: ${r.avance}% · Programado: ${r.programado}% · Real: ${r.real}% · Desviación: ${desv}${r.indice != null ? ` · Índice: ${r.indice}` : ''}`,
+    `• Actividades terminadas: ${r.terminados} de ${r.aplican} que aplican`,
+    `• Atrasadas: ${r.atrasados} · Por vencer: ${r.por_vencer}`,
+    '',
+    r.atrasados || r.por_vencer
+      ? 'Les pido revisar las actividades atrasadas y por vencer a su cargo y actualizar su avance antes de la próxima reunión de seguimiento.'
+      : 'Gracias por mantener el programa al día.',
+    '',
+    'Saludos,',
+    store.usuario.nombre || '',
+  ];
+  return lineas.join('\n');
 }
 
 // ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
