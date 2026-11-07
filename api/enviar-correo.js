@@ -57,17 +57,24 @@ async function enviar(yo, d) {
   if (d.pdf && (!b64(d.pdf) || d.pdf.length > MAX_ADJUNTO)) throw new Error('El PDF adjunto no es válido o es demasiado grande.');
   if (d.curva && (!b64(d.curva) || d.curva.length > 1_500_000)) throw new Error('La imagen de la Curva S no es válida.');
 
+  // Remitente (q61, solo borrador): un administrador del proyecto o un superadministrador (administra_proyecto)
+  let rem = yo;
+  if (d.modo === 'borrador' && d.de && String(d.de) !== yo.id) {
+    const [u] = await query(`SELECT id, nombre, email FROM profiles WHERE id = $1 AND activo AND NOT eliminado AND email IS NOT NULL AND administra_proyecto(id, $2)`, [String(d.de), p.id]);
+    if (!u) throw new AuthError('El remitente debe ser un administrador del proyecto con correo registrado.', 403);
+    rem = u;
+  }
   const proyecto = `${p.codigo} · ${p.nombre_corto}`;
   const r = d.resumen || {};
   const asunto = String(d.asunto || `Programa de Arranque · ${proyecto}`).replace(/[\r\n]+/g, ' ').slice(0, 200);
-  const html = cuerpoCorreo({ yo, proyecto, r, mensaje: String(d.mensaje || '').slice(0, 4000), conCurva: d.modo === 'borrador' ? !!d.con_curva : !!d.curva, enlace: String(d.enlace || '') });
+  const html = cuerpoCorreo({ yo: rem, proyecto, r, mensaje: String(d.mensaje || '').slice(0, 4000), conCurva: d.modo === 'borrador' ? !!d.con_curva : !!d.curva, enlace: String(d.enlace || '') });
 
   if (d.modo === 'borrador') {
     await query(
       `INSERT INTO auditoria (area_id, tabla, registro_id, accion, usuario_id, cambios) VALUES ($1, 'correos', $2, 'borrador', $3, $4::jsonb)`,
-      [p.area_id, p.id, yo.id, JSON.stringify({ asunto, para, copia: !!d.copia, documento: 'Programa de Arranque' })], yo.id,
+      [p.area_id, p.id, yo.id, JSON.stringify({ asunto, para, de: rem.email || null, documento: 'Programa de Arranque' })], yo.id,
     ).catch(e => console.error('[correo] auditoría:', e?.message ?? e));
-    return { ok: true, borrador: true, de: yo.email || null, nombre: yo.nombre || '', para, cc: d.copia && yo.email ? [yo.email] : [], asunto, html };
+    return { ok: true, borrador: true, de: rem.email || null, nombre: rem.nombre || '', para, cc: [], asunto, html };
   }
 
   const remitente = process.env.CORREO_REMITENTE;

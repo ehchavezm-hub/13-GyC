@@ -885,22 +885,33 @@ async function enviarPorCorreo() {
   if (!miembros.length) {
     throw new Error('El proyecto no tiene miembros con correo. Agréguelos en Administración → Nivel 3 · Miembros del proyecto.');
   }
+  // Remitentes (q61): los administradores del proyecto y, como alternativa, los superadministradores de la empresa
+  const idsProy = [estado.proyId, proyecto(estado.proyId)?.padre_id].filter(Boolean);
+  const vivo = u => u && u.email && u.activo !== false && !u.eliminado;
+  const adminsProy = store.proyectoLideres.filter(l => idsProy.includes(l.proyecto_id) && l.rol === 'administrador')
+    .map(l => store.perfiles.find(u => u.id === l.usuario_id)).filter(vivo);
+  const supers = store.perfiles.filter(u => vivo(u) && u.rol === 'superadmin');
+  const remitentes = [...new Map([...adminsProy, ...supers].map(u => [u.id, u])).values()];
+  if (!remitentes.some(u => u.id === store.usuario.id) && vivo(store.usuario)) remitentes.push(store.usuario);
+  const remDefecto = (adminsProy.find(u => u.id === store.usuario.id) || adminsProy[0] || remitentes.find(u => u.id === store.usuario.id) || remitentes[0])?.id;
   const p = proyecto(estado.proyId) || {};
   // El resumen se calcula antes de abrir el formulario: con él se arma el mensaje por defecto (q46)
   const informe = await exportarPDF({ soloDatos: true });
   const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
   const d = await pedirDatos({
     titulo: 'Enviar por correo', texto: 'Preparar correo', ancho: 640,
-    antes: `Se preparará un <b>borrador para Outlook</b>: saldrá desde la cuenta de Outlook en la que lo abra (por ejemplo, su correo
-      corporativo) y quedará en sus Enviados. Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
+    antes: `Se preparará un <b>borrador para Outlook</b> desde el remitente elegido; quedará en sus Enviados. Incluye el resumen con la
+      Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
     campos: [
+      { name: 'de', label: 'Enviar desde', type: 'select', required: true, full: true,
+        options: remitentes.map(u => ({ value: u.id, label: `${u.nombre} · ${u.email} · ${adminsProy.includes(u) ? 'Administrador del proyecto' : u.rol === 'superadmin' ? 'Super administrador' : 'Usted'}` })) },
       { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true, todos: true,
         options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
       { name: 'asunto', label: 'Asunto', required: true, full: true },
       { name: 'mensaje', label: 'Mensaje', type: 'textarea', rows: 12 },
     ],
-    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`,
-      mensaje: mensajePorDefecto(p, informe.resumen, fecha) },
+    valores: { de: remDefecto, asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`,
+      mensaje: mensajePorDefecto(p, informe.resumen, fecha, remitentes.find(u => u.id === remDefecto)) },
     alGuardar: async v => { if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.'); },
   });
   if (!d) return;
@@ -910,11 +921,11 @@ async function enviarPorCorreo() {
   const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
   // El servidor valida que los destinatarios sean miembros del proyecto, arma el cuerpo y registra la auditoría
   const r = await api.enviarCorreo({
-    modo: 'borrador', proyecto_id: estado.proyId, para: d.para, asunto: d.asunto, mensaje: d.mensaje || '',
+    modo: 'borrador', de: d.de, proyecto_id: estado.proyId, para: d.para, asunto: d.asunto, mensaje: d.mensaje || '',
     resumen: informe.resumen, con_curva: !!informe.curvaPng, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
   });
   const eml = borradorEML({
-    para: r.para, cc: r.cc, asunto: r.asunto, html: r.html,
+    de: r.de, nombre: r.nombre, para: r.para, cc: r.cc, asunto: r.asunto, html: r.html,
     adjuntos: [
       ...(informe.curvaPng ? [{ nombre: 'curva-s.png', tipo: 'image/png', base64: informe.curvaPng.split(',')[1], cid: 'curva-s' }] : []),
       { nombre: `${archivo}.pdf`, tipo: 'application/pdf', base64: pdf },
@@ -924,14 +935,14 @@ async function enviarPorCorreo() {
   // Dos formas, según el Outlook de quien envía (sin configuración ni intervención de TI en ninguna)
   modal({
     titulo: 'Correo listo para enviar', ancho: 600,
-    cuerpo: `<p style="margin:0 0 10px">Para <b>${r.para.length}</b> miembro${r.para.length === 1 ? '' : 's'} del proyecto. Saldrá desde la cuenta
-        de Outlook en la que lo abra y quedará en sus Enviados. Elija según el Outlook que use:</p>
+    cuerpo: `<p style="margin:0 0 10px">Para <b>${r.para.length}</b> miembro${r.para.length === 1 ? '' : 's'} del proyecto, desde
+        <b>${esc(r.nombre)} (${esc(r.de)})</b>.${r.de !== store.usuario.email ? ` Ábralo en el Outlook de esa cuenta.` : ''} Elija según el Outlook que use:</p>
       <div class="pa-correo-opcion"><b>Outlook de escritorio</b>
         <p>Se descarga un borrador. Ábralo (doble clic): se abre en Outlook con los destinatarios, el mensaje, la Curva S y el PDF adjunto. Revise y pulse <b>Enviar</b>.</p>
         <button class="btn btn-primario" data-eml>⬇ Descargar borrador para Outlook</button></div>
       <div class="pa-correo-opcion"><b>Outlook en el navegador (Microsoft 365)</b>
         <p>Se abre un correo nuevo en Outlook web con los destinatarios, el asunto y el mensaje, y se descarga el PDF:
-          arrástrelo al correo y pulse <b>Enviar</b>.</p>
+          arrástrelo al correo y pulse <b>Enviar</b>. Debe tener abierta la sesión de ${esc(r.de)}.</p>
         <button class="btn" data-web>↗ Abrir en Outlook web</button></div>`,
     botones: [{ texto: 'Cerrar' }],
   }).cuerpo.addEventListener('click', e => {
@@ -955,10 +966,9 @@ function descargar(nombre, blob) {
 
 /**
  * Borrador de correo (.eml, RFC 5322) que Outlook abre como mensaje nuevo listo para enviar (X-Unsent: 1).
- * Sin «From»: sale desde la cuenta de Outlook en la que se abre (p. ej. el correo corporativo del administrador del
- * proyecto, o el del superadministrador aunque haya ingresado a GyC con otro correo). Cuerpo HTML con imágenes incrustadas (cid) y adjuntos.
+ * «From» es el remitente elegido (administrador del proyecto o superadministrador): Outlook lo envía desde esa cuenta. Cuerpo HTML con imágenes incrustadas (cid) y adjuntos.
  */
-function borradorEML({ para, cc = [], asunto, html, adjuntos = [] }) {
+function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] }) {
   const b64utf8 = t => { let bin = ''; for (const b of new TextEncoder().encode(t)) bin += String.fromCharCode(b); return btoa(bin); };
   const enc = t => (/^[\x20-\x7E]*$/.test(t) ? t : `=?UTF-8?B?${b64utf8(t)}?=`);
   const lineas = t => t.replace(/.{1,76}/g, '$&\r\n');
@@ -968,6 +978,7 @@ function borradorEML({ para, cc = [], asunto, html, adjuntos = [] }) {
   const parte = (a, disp) => [`Content-Type: ${a.tipo}; name="${enc(a.nombre).replace(/"/g, '')}"`, 'Content-Transfer-Encoding: base64',
     ...(a.cid ? [`Content-ID: <${a.cid}>`] : []), `Content-Disposition: ${disp}; ${nombreArch(a.nombre)}`, '', lineas(a.base64.replace(/\s/g, ''))].join('\r\n');
   const cab = [
+    ...(de ? [`From: ${enc(nombre || '')} <${de}>`] : []),
     `To: ${para.join(', ')}`, ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
     `Subject: ${enc(asunto)}`, 'X-Unsent: 1', 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${m}"`, '',
   ];
@@ -989,7 +1000,7 @@ function nombreArchivoPA(fecha) {
 }
 
 /** Mensaje inicial del correo (editable): datos del proyecto y estado del programa de arranque (q46) */
-function mensajePorDefecto(p, r, fecha) {
+function mensajePorDefecto(p, r, fecha, firma = store.usuario) {
   const f = v => (v ? fmtFecha(v) : '—');
   const desv = `${r.desviacion > 0 ? '+' : ''}${r.desviacion} pts`;
   const lineas = [
@@ -1017,7 +1028,7 @@ function mensajePorDefecto(p, r, fecha) {
       : 'Gracias por mantener el programa al día.',
     '',
     'Saludos,',
-    store.usuario.nombre || '',
+    firma?.nombre || '',
   ];
   return lineas.join('\n');
 }

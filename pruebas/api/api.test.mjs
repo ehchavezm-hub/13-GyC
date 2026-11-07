@@ -372,5 +372,10 @@ test('enviar por correo: solo administradores del proyecto y solo a sus miembros
     assert.equal(enviados.length, 1);                                            // no salió ningún correo
     await assert.rejects(llamar(correo, 'user_admin', { ...base, modo: 'borrador', para: ['user_dueno'] }), /miembros activos del proyecto/);
     await assert.rejects(llamar(correo, 'user_lider', { ...base, modo: 'borrador', para: ['user_lider'] }), /administradores del proyecto/);
+    // Remitente: un administrador del proyecto (o superadministrador); un simple miembro no puede figurar como remitente
+    await assert.rejects(llamar(correo, 'user_admin', { ...base, modo: 'borrador', de: 'user_lider', para: ['user_lider'] }), /remitente debe ser un administrador/);
+    await pool.query(`UPDATE proyecto_lideres SET rol = 'administrador' WHERE proyecto_id = $1 AND usuario_id = 'user_lider'`, [p.id]);
+    const b2 = await llamar(correo, 'user_admin', { ...base, modo: 'borrador', de: 'user_lider', para: ['user_lider'] });
+    assert.equal(b2.de, 'lider@ejemplo.com');
   } finally { usarEnvio(null); }
 });
