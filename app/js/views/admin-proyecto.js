@@ -32,7 +32,7 @@ export async function panelMiembrosProyecto(el, ctx) {
       <p class="admin-sub" style="margin:4px 0 0">${esc(p.codigo)} · ${esc(p.nombre_corto)} — ${miembros.length} persona(s), ${admins} administrador(es).
       Los miembros aparecen como responsables en el Programa de Arranque; los administradores gestionan este proyecto (nivel 3).</p></div>
       <span class="flex"></span><button class="btn btn-primario" data-a="agregar">＋ Agregar miembros</button></div>
-    <div class="tarjeta admin-tabla-wrap"><table class="simple"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol en la empresa</th><th>Rol en el proyecto</th><th></th></tr></thead>
+    <div class="tarjeta admin-tabla-wrap"><table class="simple"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol-empresa</th><th>Rol-proyecto</th><th></th></tr></thead>
       <tbody>${miembros.map(m => `<tr data-u="${esc(m.usuario_id)}">
         <td><b>${esc(m.perfil.nombre)}</b></td><td>${esc(m.perfil.email || '')}</td><td>${esc(ROLES[m.perfil.rol] || m.perfil.rol)}</td>
         <td><select data-rol>${Object.entries(ROLES_PROYECTO).map(([k, v]) => `<option value="${k}"${(m.rol || 'miembro') === k ? ' selected' : ''}>${v}</option>`).join('')}</select></td>
@@ -51,7 +51,7 @@ export async function panelMiembrosProyecto(el, ctx) {
       titulo: `Agregar miembros a ${p.nombre_corto}`,
       campos: [
         { name: 'usuarios', label: 'Usuarios de la empresa', type: 'multiselect', unaColumna: true, options: opciones },
-        { name: 'rol', label: 'Rol en el proyecto', type: 'select', options: Object.entries(ROLES_PROYECTO).map(([value, label]) => ({ value, label })), value: 'miembro' },
+        { name: 'rol', label: 'Rol-proyecto', type: 'select', options: Object.entries(ROLES_PROYECTO).map(([value, label]) => ({ value, label })), value: 'miembro' },
       ],
       alGuardar: async d => {
         if (!d.usuarios.length) throw new Error('Elija al menos un usuario.');
@@ -68,7 +68,7 @@ export async function panelMiembrosProyecto(el, ctx) {
     if (u === store.usuario.id && sel.value !== 'administrador' && !confirm('Dejará de administrar este proyecto. ¿Continuar?')) { sel.value = 'administrador'; return; }
     try {
       await api.updateWhere('proyecto_lideres', { eq: { proyecto_id: p.id, usuario_id: u } }, { rol: sel.value });
-      ok('Rol actualizado.');
+      ok('Rol-proyecto actualizado.');
     } catch (err) { error(mensajeError(err)); }
     await recargar();
   });

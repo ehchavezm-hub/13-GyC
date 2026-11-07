@@ -66,7 +66,7 @@ async function usuarios(el) {
         <button class="btn btn-sm btn-primario" data-a="nuevo">＋ Nuevo usuario</button>
         <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button>
         <button class="btn btn-sm" data-a="pdf-usuarios" title="Usuarios y roles con el organigrama">🖨 PDF</button></div>
-      <table class="simple"><tr><th>Nombre</th><th>Código</th><th>Cargo</th><th>Correo</th><th>Rol</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
+      <table class="simple"><tr><th>Nombre</th><th>Código</th><th>Cargo</th><th>Correo</th><th>Rol-empresa</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
       ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}${p._otraEmpresa ? `<br><small class="nota" title="Pertenece a varias empresas. Su rol en esta empresa lo cambia un propietario en Administración › Plataforma › Empresas › Gestionar.">Hoy trabaja en otra empresa</small>` : ''}</td><td>${esc(p.codigo || '')}</td><td>${esc(p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '')}</td><td>${esc(p.email || '')}</td>
         <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
         <td>${esc((p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', '))}</td><td class="num">${p.horas_dia ?? '—'}</td>
@@ -163,7 +163,7 @@ async function nuevoUsuario() {
       { name: 'email', label: 'Correo (usuario de ingreso)', type: 'email', required: true },
       { name: 'cargo_id', label: 'Cargo', type: 'select', options: opciones('cargos'), help: 'Lista editable en Configuración → Listas → Cargos' },
       { name: 'codigo', label: 'Código corto (iniciales)' },
-      { name: 'rol', label: 'Rol', type: 'select', required: true, options: roles.map(([value, label]) => ({ value, label })) },
+      { name: 'rol', label: 'Rol-empresa', type: 'select', required: true, options: roles.map(([value, label]) => ({ value, label })) },
       { name: 'clave', label: 'Contraseña temporal (mínimo 8)', required: true, help: 'Se generó una al azar; puede cambiarla. La persona la cambiará al ingresar.' },
       { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
       { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', unaColumna: true, options: opciones('gerencias', { vacio: false }) },
@@ -206,7 +206,7 @@ async function editarUsuario(p) {
     campos: [
       { name: 'nombre', label: 'Nombre', required: true }, { name: 'codigo', label: 'Código corto' },
       { name: 'cargo_id', label: 'Cargo', type: 'select', options: opciones('cargos'), help: 'Lista editable en Configuración → Listas → Cargos' },
-      { name: 'rol', label: 'Rol', type: 'select', options: roles.map(([value, label]) => ({ value, label })),
+      { name: 'rol', label: 'Rol-empresa', type: 'select', options: roles.map(([value, label]) => ({ value, label })),
         help: principal ? '' : 'Solo el super administrador asigna los roles de super administrador, administrador y delegado.' },
       { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
       { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', unaColumna: true, options: opciones('gerencias', { vacio: false }) },
