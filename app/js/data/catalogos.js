@@ -138,12 +138,12 @@ export const PERMISOS_INICIALES = {
 };
 
 // El orden define cómo se muestran en listas y en la matriz de permisos.
-// "lider" conserva su código interno; desde la versión 1.1 se muestra como "Líder de especialidad".
+// "lider" conserva su código interno (heredado de la otra aplicación); se muestra como "Usuario" (q42).
 export const ROLES = {
   superadmin: 'Super administrador',
   admin: 'Administrador',
   delegado: 'Administrador delegado',
-  lider: 'Líder de especialidad',
+  lider: 'Usuario',
   consulta: 'Consulta',
   pendiente: 'Pendiente de aprobación',
 };
