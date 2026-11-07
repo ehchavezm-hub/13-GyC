@@ -1,9 +1,11 @@
-// Envío del Programa de Arranque por correo (q37, opción 2): sale "en nombre de" quien lo envía.
-//   De:         "<Nombre> (GyC)" <CORREO_REMITENTE>   (dominio verificado en el servicio de correo)
-//   Responder a: el correo de quien lo envía          (las respuestas le llegan a esa persona)
-// Cuerpo en HTML armado aquí a partir de datos (no se acepta HTML del navegador), Curva S como imagen
-// incrustada y el PDF completo adjunto. Servicio: Resend (https://resend.com). Solo administradores del proyecto.
-// Variables de entorno en Vercel: RESEND_API_KEY (secreta) y CORREO_REMITENTE (p. ej. notificaciones@midominio.com).
+// Programa de Arranque por correo. Solo administradores del proyecto; destinatarios: solo miembros del proyecto.
+// Dos modos:
+//   modo 'borrador' (q51, el que usa el aplicativo): no envía nada. Valida los destinatarios, arma el cuerpo y
+//     registra la auditoría; el navegador genera un borrador .eml que se abre en el Outlook de quien lo pide y
+//     sale desde su propio correo (p. ej. el corporativo del administrador del proyecto). No requiere configuración.
+//   envío automático (q37): sale por Resend como "<Nombre> (GyC)" <CORREO_REMITENTE>, Responder a quien lo envía.
+//     Requiere en Vercel RESEND_API_KEY (secreta) y CORREO_REMITENTE (de un dominio verificado).
+// El cuerpo en HTML se arma aquí a partir de datos (no se acepta HTML del navegador).
 import { query } from './_lib/db.js';
 import { verificarAuth, AuthError, leerCuerpo, habilitado } from './_lib/auth.js';
 
@@ -58,7 +60,15 @@ async function enviar(yo, d) {
   const proyecto = `${p.codigo} · ${p.nombre_corto}`;
   const r = d.resumen || {};
   const asunto = String(d.asunto || `Programa de Arranque · ${proyecto}`).replace(/[\r\n]+/g, ' ').slice(0, 200);
-  const html = cuerpoCorreo({ yo, proyecto, r, mensaje: String(d.mensaje || '').slice(0, 4000), conCurva: !!d.curva, enlace: String(d.enlace || '') });
+  const html = cuerpoCorreo({ yo, proyecto, r, mensaje: String(d.mensaje || '').slice(0, 4000), conCurva: d.modo === 'borrador' ? !!d.con_curva : !!d.curva, enlace: String(d.enlace || '') });
+
+  if (d.modo === 'borrador') {
+    await query(
+      `INSERT INTO auditoria (area_id, tabla, registro_id, accion, usuario_id, cambios) VALUES ($1, 'correos', $2, 'borrador', $3, $4::jsonb)`,
+      [p.area_id, p.id, yo.id, JSON.stringify({ asunto, para, copia: !!d.copia, documento: 'Programa de Arranque' })], yo.id,
+    ).catch(e => console.error('[correo] auditoría:', e?.message ?? e));
+    return { ok: true, borrador: true, de: yo.email || null, nombre: yo.nombre || '', para, cc: d.copia && yo.email ? [yo.email] : [], asunto, html };
+  }
 
   const remitente = process.env.CORREO_REMITENTE;
   const clave = process.env.RESEND_API_KEY;

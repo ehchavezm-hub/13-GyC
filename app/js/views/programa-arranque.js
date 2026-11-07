@@ -890,31 +890,65 @@ async function enviarPorCorreo() {
   const informe = await exportarPDF({ soloDatos: true });
   const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
   const d = await pedirDatos({
-    titulo: 'Enviar por correo', texto: 'Enviar', ancho: 640,
-    antes: `Se enviará en nombre de <b>${esc(store.usuario.nombre)}</b>: las respuestas le llegarán a ${esc(store.usuario.email || 'su correo')}.
-      Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
+    titulo: 'Enviar por correo', texto: 'Preparar correo', ancho: 640,
+    antes: `Se preparará un <b>borrador en su Outlook</b>: saldrá desde su propio correo (<b>${esc(store.usuario.email || 'su correo')}</b>)
+      y quedará en sus Enviados. Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
     campos: [
       { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true, todos: true,
         options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
       { name: 'asunto', label: 'Asunto', required: true, full: true },
       { name: 'mensaje', label: 'Mensaje', type: 'textarea', rows: 12 },
-      { name: 'copia', label: 'Copia', type: 'checkbox', texto: 'Enviarme una copia', full: true },
     ],
-    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`, copia: true,
+    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`,
       mensaje: mensajePorDefecto(p, informe.resumen, fecha) },
     alGuardar: async v => { if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.'); },
   });
   if (!d) return;
-  ok('Preparando el PDF y enviando…');
+  ok('Preparando el correo y el PDF…');
   const { generarArchivoPDF } = await import('../services/pdf.js');
   const archivo = nombreArchivoPA(informe.fecha);
   const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
+  // El servidor valida que los destinatarios sean miembros del proyecto, arma el cuerpo y registra la auditoría
   const r = await api.enviarCorreo({
-    proyecto_id: estado.proyId, para: d.para, copia: !!d.copia, asunto: d.asunto, mensaje: d.mensaje || '',
-    resumen: informe.resumen, curva: informe.curvaPng ? informe.curvaPng.split(',')[1] : null,
-    pdf, pdf_nombre: `${archivo}.pdf`, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
+    modo: 'borrador', proyecto_id: estado.proyId, para: d.para, asunto: d.asunto, mensaje: d.mensaje || '',
+    resumen: informe.resumen, con_curva: !!informe.curvaPng, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
   });
-  ok(`Correo enviado a ${r.enviados} miembro${r.enviados === 1 ? '' : 's'} del proyecto.`);
+  const eml = borradorEML({
+    de: r.de, nombre: r.nombre, para: r.para, cc: r.cc, asunto: r.asunto, html: r.html,
+    adjuntos: [
+      ...(informe.curvaPng ? [{ nombre: 'curva-s.png', tipo: 'image/png', base64: informe.curvaPng.split(',')[1], cid: 'curva-s' }] : []),
+      { nombre: `${archivo}.pdf`, tipo: 'application/pdf', base64: pdf },
+    ],
+  });
+  descargar(`${archivo}.eml`, new Blob([eml], { type: 'message/rfc822' }));
+  ok(`Borrador listo para ${r.para.length} miembro${r.para.length === 1 ? '' : 's'}: abra el archivo descargado (.eml), se abrirá en Outlook; revise y pulse Enviar.`, 12000);
+}
+
+/**
+ * Borrador de correo (.eml, RFC 5322) que Outlook abre como mensaje nuevo listo para enviar (X-Unsent: 1).
+ * Sale desde la cuenta de Outlook de quien lo abre. Cuerpo HTML con imágenes incrustadas (cid) y adjuntos.
+ */
+function borradorEML({ de, nombre, para, cc = [], asunto, html, adjuntos = [] }) {
+  const b64utf8 = t => { let bin = ''; for (const b of new TextEncoder().encode(t)) bin += String.fromCharCode(b); return btoa(bin); };
+  const enc = t => (/^[\x20-\x7E]*$/.test(t) ? t : `=?UTF-8?B?${b64utf8(t)}?=`);
+  const lineas = t => t.replace(/.{1,76}/g, '$&\r\n');
+  const nombreArch = n => `filename="${enc(n).replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(n)}`;
+  const m = `gyc-m-${Math.random().toString(36).slice(2)}`, rel = `gyc-r-${Math.random().toString(36).slice(2)}`;
+  const enLinea = adjuntos.filter(a => a.cid), archivos = adjuntos.filter(a => !a.cid);
+  const parte = (a, disp) => [`Content-Type: ${a.tipo}; name="${enc(a.nombre).replace(/"/g, '')}"`, 'Content-Transfer-Encoding: base64',
+    ...(a.cid ? [`Content-ID: <${a.cid}>`] : []), `Content-Disposition: ${disp}; ${nombreArch(a.nombre)}`, '', lineas(a.base64.replace(/\s/g, ''))].join('\r\n');
+  const cab = [
+    ...(de ? [`From: ${enc(nombre || '')} <${de}>`] : []),
+    `To: ${para.join(', ')}`, ...(cc.length ? [`Cc: ${cc.join(', ')}`] : []),
+    `Subject: ${enc(asunto)}`, 'X-Unsent: 1', 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${m}"`, '',
+  ];
+  const cuerpo = [
+    `--${m}`, `Content-Type: multipart/related; boundary="${rel}"`, '',
+    `--${rel}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', lineas(b64utf8(html)),
+    ...enLinea.flatMap(a => [`--${rel}`, parte(a, 'inline')]), `--${rel}--`, '',
+    ...archivos.flatMap(a => [`--${m}`, parte(a, 'attachment')]), `--${m}--`, '',
+  ];
+  return [...cab, ...cuerpo].join('\r\n');
 }
 
 /** Nombre del PDF (q48): Proyecto_Programa de arranque_DD-MM-AAAA (fecha del avance) */
