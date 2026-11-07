@@ -17,6 +17,7 @@ const NPM = {
   'tabulator.min.css': ['tabulator-tables', '6.6.1', 'dist/css/tabulator.min.css'],
   'chart.umd.min.js': ['chart.js', '4.5.1', 'dist/chart.umd.min.js'],
   'html2pdf.bundle.min.js': ['html2pdf.js', '0.10.2', 'dist/html2pdf.bundle.min.js'],
+  'qrcode.js': ['qrcode-generator', '2.0.4', 'dist/qrcode.js'],
 };
 const SHEETJS = ['0.20.3', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'];
 const SENTRY = ['@sentry/browser@11.9.0', 'esbuild@0.25.0'];
@@ -53,7 +54,7 @@ sh('npx esbuild entrada.js --bundle --minify --format=iife --global-name=Sentry 
 comparar('sentry.min.js', readFileSync(join(TMP, 'sentry.min.js'), 'utf8'));
 
 // Vulnerabilidades conocidas de las versiones incluidas (SheetJS no está en npm: se exige >= 0.20.2)
-const deps = Object.fromEntries(Object.values(NPM).map(([p, v]) => [p, v]));
+const deps = Object.fromEntries(Object.values(NPM).map(([p, v]) => [p, v]));   // (qrcode-generator incluido)
 deps['@sentry/browser'] = SENTRY[0].split('@').pop();
 writeFileSync(join(TMP, 'package.json'), JSON.stringify({ name: 'auditoria', private: true, dependencies: deps }));
 sh('rm -rf node_modules package-lock.json && npm i --package-lock-only --silent --no-fund');

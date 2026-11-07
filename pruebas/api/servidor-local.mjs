@@ -24,11 +24,11 @@ if (process.argv.includes('--reiniciar')) {
   const c = await pool.connect();
   try {
     await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql', '037_programa_arranque_r1.sql', '038_administracion_tres_niveles.sql', '039_paleta_tableau.sql', '040_aplica.sql']) {
+    for (const m of ['000_gyc_neon_completo.sql', '035_compatibilidad_api.sql', '036_cuentas_preasignadas.sql', '037_programa_arranque_r1.sql', '038_administracion_tres_niveles.sql', '039_paleta_tableau.sql', '040_aplica.sql', '041_actas.sql']) {
       await c.query(readFileSync(path.join(RAIZ, 'db/migrations', m), 'utf8'));
     }
   } finally { c.release(); }
-  console.log('Base reiniciada con 000 + 035 + 036 + 037 + 038 + 039 + 040.');
+  console.log('Base reiniciada con 000 + 035 + 036 + 037 + 038 + 039 + 040 + 041.');
 }
 
 usarVerificador(async token => token);
@@ -53,6 +53,7 @@ const funciones = {
   '/api/admin-usuarios': (await import('../../api/admin-usuarios.js')).default,
   '/api/health': (await import('../../api/health.js')).default,
   '/api/enviar-correo': (await import('../../api/enviar-correo.js')).default,
+  '/api/asistencia': (await import('../../api/asistencia.js')).default,
 };
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };

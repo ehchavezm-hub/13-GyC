@@ -37,6 +37,8 @@ ruta('/backlog', enBlanco('Plan de construcción'), { staff: true });
 ruta('/restricciones', () => import('./views/restricciones.js'), { staff: true });
 ruta('/cartera', enBlanco('Programa de cierre'));
 ruta('/cartera/:id', enBlanco('Programa de cierre'));
+ruta('/actas', () => import('./views/actas.js'), { staff: true });
+ruta('/actas/:id', () => import('./views/actas.js'), { staff: true });
 ruta('/tablero', () => import('./views/tablero.js'));
 ruta('/reunion', () => import('./views/reunion.js'), { staff: true });
 ruta('/proyectos', () => import('./views/proyectos.js'));
