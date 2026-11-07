@@ -1,4 +1,4 @@
-// Programa de Arranque (CR-PG-SGP-01-F1 r1, pestañas "0.Datos", "1.Programa de arranque" y "3.Listas").
+// Programa de Arranque (CR-PG-SGP-01-F1 r1, pestañas "0.Ficha del proyecto", "1.Programa de arranque" y "3.Listas").
 // Diseño basado en herramientas de referencia:
 //   · Procore (checklists): ítems agrupados por sección con avance "x/y" por sección y ficha del ítem con historial.
 //   · Smartsheet: filas agrupadas por fase (aquí, por Proceso), barras de avance en lugar de números.
@@ -13,7 +13,7 @@ import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombr
 import { esc, html, fmtFecha, hoy, sumarDias, libExcel, libGraficos, normalizar } from '../core/util.js';
 import { icono } from '../ui/iconos.js';
 import { error as mostrarError, pedirDatos, ok, toast, confirmar } from '../ui/ui.js';
-import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
+import { CAMPOS_INFO, puedeEditarProyecto, leerFichaExcel } from './informacion-proyecto.js';
 
 const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin prog. = Inicio prog. + 90
 const PROXIMOS_DIAS = 14;          // "por vencer": fin vigente dentro de 14 días
@@ -720,27 +720,16 @@ async function importarExcel() {
   }
   if (!defs.length) throw new Error('El archivo no tiene ítems del programa de arranque.');
 
-  // Pestaña 0.Datos: información del proyecto
-  const hojaDatos = libro.SheetNames.find(n => /^0\.?\s*datos/i.test(n));
-  const info = {};
-  if (hojaDatos) {
-    const MAPA = { cr: 'cr', proyecto: 'nombre_completo', iniciocontractual: 'inicio_contractual', fincontractual: 'fin_contractual',
-      fechainiciomovilizacion: 'fecha_movilizacion', fechainiciodeconstruccion: 'fecha_construccion' };
-    for (const f of XLSX.utils.sheet_to_json(libro.Sheets[hojaDatos], { header: 1, raw: true, defval: null })) {
-      const n = f.findIndex(v => MAPA[clave(v)]);
-      if (n < 0) continue;
-      const campo = MAPA[clave(f[n])], v = f[n + 1];
-      if (v == null || v === '') continue;
-      info[campo] = campo === 'cr' || campo === 'nombre_completo' ? String(v).trim() : fechaIso(v);
-    }
-  }
-
+  // Pestaña "0.Ficha del proyecto" (o la "0.Datos" de la versión anterior): datos de la ficha del proyecto.
+  // Volúmenes, organización y fotos se importan desde la propia Ficha del proyecto.
+  const ficha = leerFichaExcel(XLSX, libro);
+  const info = ficha?.campos || {};
   const reuniones = [...new Set(segs.map(s => s.fecha_revision))].sort();
   const nInfo = Object.keys(info).length;
   const si = await confirmar(`Se cargará "${archivo.name}" en ${nombreSeleccion()}:
     · ${defs.length} ítems de definición (Aplica, Resp., Inicio prog., Fin prog., Comentarios)
     · ${segs.length} registros de seguimiento${reuniones.length ? ` (reunión${reuniones.length > 1 ? 'es' : ''} del ${reuniones.map(fmtFecha).join(', ')})` : ''}
-    ${nInfo ? `· ${nInfo} dato(s) de la ficha del proyecto (pestaña 0.Datos)` : ''}
+    ${nInfo ? `· ${nInfo} dato(s) de la ficha del proyecto (pestaña «${ficha.hoja}»)` : ''}
     ${sinUsuario.size ? `· Responsables que no son usuarios de la empresa (quedan como texto): ${[...sinUsuario].join(', ')}` : ''}
     ${desconocidos.length ? `· Ítems que no existen en el formato y se omiten: ${desconocidos.join(', ')}` : ''}
     Los valores actuales de esos ítems se reemplazan. ¿Continuar?`, { titulo: 'Importar Excel', texto: 'Importar' });
@@ -1099,8 +1088,9 @@ async function exportarExcel() {
   const XLSX = await libExcel();
   const p = proyecto(estado.proyId) || {};
   const libro = XLSX.utils.book_new();
-  const datos = CAMPOS_INFO.map(c => [c.label, c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : (p[c.name] || '')]);
-  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], ...datos.map(r => ['', ...r])]), '0.Datos');
+  // Pestaña "0.Ficha del proyecto": mismas etiquetas que el formato r1 (se vuelve a importar tal cual)
+  const datos = CAMPOS_INFO.map(c => [`${c.label}:`, c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : (p[c.name] ?? '')]);
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['FICHA DEL PROYECTO'], [], ...datos]), '0.Ficha del proyecto');
   const cab = ['Ítem', 'Proceso', 'Area', 'Aplica', 'Descripción de actividad', 'Resp.', 'Inicio prog.', 'Fin prog.', 'Comentarios', '',
     'Fecha rev.', '% Ava. Acu.', 'Comentarios', 'Fin re-prog.', 'Estado'];
   const filas = estado.items.map(i => {

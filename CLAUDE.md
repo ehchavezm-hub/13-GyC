@@ -25,6 +25,8 @@ app/           Frontend (HTML/CSS/JS puro)
     views/
       login.js        Monta Clerk SignIn (muestra el error si Clerk no carga)
       programa-arranque.js  Checklist CR-PG-SGP-01-F1 (74 ítems)
+      informacion-proyecto.js  Ficha del proyecto (pestaña "0.Ficha del proyecto"): datos, plazos, presupuesto,
+                      alcance, volúmenes, organización, fotos; importa la pestaña del Excel y genera PDF
       actas.js        Acta de reunión: Nueva acta, Log de reuniones, asistentes por QR, acuerdos y PDF
   asistencia.html  Página pública del registro de asistencia por QR (sin Clerk; enlace secreto del acta)
 api/
@@ -39,7 +41,7 @@ api/
   asistencia.js Registro público de asistencia a un acta (solo con la asistencia abierta; valida DNI y firma)
   enviar-correo.js  Correo del Programa de Arranque (borrador para Outlook; envío automático opcional)
 db/
-  migrations/   000 → 035 → … → 041 (Neon SQL Editor, en orden; 035–041 se pueden repetir)
+  migrations/   000 → 035 → … → 042 (Neon SQL Editor, en orden; 035–042 se pueden repetir)
   legado-supabase/  001–034 originales de Supabase (solo referencia; NO ejecutar en Neon)
   tests/run.sh  Prueba 000 + 035 en un PostgreSQL temporal y luego el API (pruebas/api)
 pruebas/
@@ -71,7 +73,7 @@ pruebas/
 1. Vercel: conectar repo, agregar env vars `DATABASE_URL`, `CLERK_SECRET_KEY` (opcional `CLERK_JWT_KEY` para verificar sin red)
 2. Neon: ejecutar en el SQL Editor, en orden: `000_gyc_neon_completo.sql`, `035_compatibilidad_api.sql`,
    `036_cuentas_preasignadas.sql`, `037_programa_arranque_r1.sql`, `038_administracion_tres_niveles.sql`,
-   `039_paleta_tableau.sql`, `040_aplica.sql`, `041_actas.sql`
+   `039_paleta_tableau.sql`, `040_aplica.sql`, `041_actas.sql`, `042_ficha_proyecto.sql`
 3. Clerk: copiar Publishable Key → `app/config.js` → `clerkPublishableKey` (única fuente; `config.js` carga Clerk)
 4. La primera persona que ingresa queda como super administrador principal y propietaria de la plataforma;
    las siguientes quedan "pendiente" hasta que un gestor les asigne rol, salvo que su correo esté en

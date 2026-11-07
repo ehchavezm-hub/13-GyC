@@ -58,6 +58,10 @@ export const ALCANCE = {
     escribir: 'programa_id IN (SELECT pa.id FROM programa_arranque pa JOIN proyectos p ON p.id = pa.proyecto_id WHERE p.area_id = :A)',
   },
   programa_arranque_items: { leer: 'TRUE', escribir: null },
+  // Ficha del proyecto: volúmenes principales, organización (staff) y fotos
+  proyecto_volumenes: { leer: PROYECTO_DE_EMPRESA, escribir: PROYECTO_DE_EMPRESA },
+  proyecto_staff: { leer: PROYECTO_DE_EMPRESA, escribir: PROYECTO_DE_EMPRESA },
+  proyecto_fotos: { leer: PROYECTO_DE_EMPRESA, escribir: PROYECTO_DE_EMPRESA },
   // Actas de reunión (w1): se leen en la empresa; las edita el administrador del proyecto o un redactor designado
   actas: { leer: PROYECTO_DE_EMPRESA, escribir: `${PROYECTO_DE_EMPRESA} AND (administra_proyecto(:U, proyecto_id) OR :U = ANY(redactores))` },
   acta_asistentes: {
