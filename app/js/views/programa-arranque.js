@@ -800,12 +800,13 @@ async function exportarPDF({ soloDatos = false } = {}) {
     const fecha = estado.reuniones.length ? fmtFecha(estado.reunion) : 'sin reuniones de seguimiento';
     // Todo seguido, como en la vista preliminar: cambia de hoja solo cuando se llena. Solo el gráfico no se parte y
     // el título de un proceso no queda solo al pie de una hoja.
-    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; }
+    // Tipografía (q66): celdas y encabezados 6,5 pt Manrope, interlineado 1,1; títulos de proceso 10 pt
+    let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; font-size: 10pt; }
       .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
-      table.pa-pdf-prog { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5pt; line-height: 1.3; }
-      table.pa-pdf-prog th, table.pa-pdf-prog td { padding: 1.1mm 1mm; vertical-align: top; text-align: left;
+      table.pa-pdf-prog { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: 'Manrope', sans-serif; font-size: 6.5pt; line-height: 1.1; }
+      table.pa-pdf-prog th, table.pa-pdf-prog td { font-size: 6.5pt; line-height: 1.1; padding: 1mm 1mm; vertical-align: top; text-align: left;
         hyphens: manual; -webkit-hyphens: manual; word-break: normal; overflow-wrap: break-word; }
-      table.pa-pdf-prog th { font-size: 7pt; white-space: normal; }
+      table.pa-pdf-prog th { font-weight: 700; color: #003366; white-space: normal; }
       table.pa-pdf-prog td.f, table.pa-pdf-prog td.n { white-space: nowrap; }
       table.pa-pdf-prog .n { text-align: right; }</style>`;
     cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
@@ -830,8 +831,8 @@ async function exportarPDF({ soloDatos = false } = {}) {
     }
     // Anchos (q41, q62): las 4 fechas y Resp. iguales y mínimos (los nombres en dos líneas); Comentarios proporcional a la
     // hoja; la descripción toma todo el resto. Sirve en horizontal (277 mm útiles) y en vertical (190 mm) sin salirse.
-    const ANCHO = { It: '6mm', Area: '22mm', Aplica: '10mm', 'Resp.': '15.5mm', 'Inicio prog.': '15.5mm', 'Fin prog.': '15.5mm',
-      'Fecha rev.': '15.5mm', '% Ava. Acu.': '10.5mm', 'Fin re-prog.': '15.5mm', Estado: '13mm', Comentarios: '12%' };
+    const ANCHO = { It: '6mm', Area: '18mm', Aplica: '10mm', 'Resp.': '14mm', 'Inicio prog.': '14mm', 'Fin prog.': '14mm',
+      'Fecha rev.': '14mm', '% Ava. Acu.': '10mm', 'Fin re-prog.': '14mm', Estado: '11.5mm', Comentarios: '12%' };
     const tablaPrograma = (cols, filas) => `<table class="pa-pdf-prog"><colgroup>${cols.map(c =>
         `<col${ANCHO[c.titulo] ? ` style="width:${ANCHO[c.titulo]}"` : ''}>`).join('')}</colgroup>
       <thead><tr>${cols.map(c => `<th class="${c.num ? 'n' : ''}">${esc(c.titulo)}</th>`).join('')}</tr></thead>
