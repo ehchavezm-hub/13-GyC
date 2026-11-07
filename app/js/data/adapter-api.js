@@ -72,6 +72,11 @@ export function crearAdaptadorApi(apiBase = '/api') {
 
   // ── Admin usuarios ──────────────────────────────────────────────────────────
 
+  // Envío del programa de arranque por correo (api/enviar-correo.js)
+  async function enviarCorreo(datos_) {
+    return post('/enviar-correo', datos_);
+  }
+
   async function adminUsuarios(accion, datos_) {
     return post('/admin-usuarios', { accion, ...datos_ });
   }
@@ -144,6 +149,6 @@ export function crearAdaptadorApi(apiBase = '/api') {
     tipo: 'api',
     list, insert, upsert, update, updateWhere,
     remove, removeWhere, rpc,
-    adminUsuarios, fijarArea, subscribe, auth,
+    adminUsuarios, enviarCorreo, fijarArea, subscribe, auth,
   };
 }

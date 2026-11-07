@@ -9,7 +9,7 @@
 //   · Seguimiento (verde): Fecha rev., % Ava. Acu., Comentarios, Fin re-prog. — un registro por ítem y reunión.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
-import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre } from '../core/store.js';
+import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre, esAdminProyecto } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, sumarDias, libExcel, libGraficos, normalizar } from '../core/util.js';
 import { icono } from '../ui/iconos.js';
 import { error as mostrarError, pedirDatos, ok, confirmar } from '../ui/ui.js';
@@ -68,6 +68,7 @@ export async function render(el) {
     <div class="pa-cab">
       <h1>Programa de Arranque</h1><span class="proy-badge">${esc(nombreSeleccion())}</span>
       <span class="flex"></span>
+      ${esAdminProyecto(proyId) ? '<button class="btn" data-a="correo" title="Enviar el programa de arranque a los miembros del proyecto">✉ Enviar por correo</button>' : ''}
       <button class="btn" data-a="pdf" title="Programa de arranque con su último avance y la Curva S">⬇ PDF</button>
       ${estado.editable ? '<button class="btn" data-a="importar" title="Cargar un Excel con el formato CR-PG-SGP-01-F1">⬆ Importar Excel</button>' : ''}
       <button class="btn" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
@@ -78,6 +79,7 @@ export async function render(el) {
   </div>`);
   el.append(wrap);
   wrap.querySelector('[data-a="excel"]').addEventListener('click', () => exportarExcel().catch(e => mostrarError(mensajeError(e))));
+  wrap.querySelector('[data-a="correo"]')?.addEventListener('click', () => enviarPorCorreo().catch(e => mostrarError(mensajeError(e))));
   wrap.querySelector('[data-a="pdf"]').addEventListener('click', () => exportarPDF().catch(e => mostrarError(mensajeError(e))));
   wrap.querySelector('[data-a="importar"]')?.addEventListener('click', () => importarExcel().catch(e => mostrarError(mensajeError(e))));
   estado.wrap = wrap;
@@ -777,8 +779,10 @@ async function imagenCurva(c) {
   return url;
 }
 
-async function exportarPDF() {
+/** Arma el informe (programa completo al último avance + Curva S). soloDatos: devuelve el contenido sin abrir la vista. */
+async function exportarPDF({ soloDatos = false } = {}) {
   const { imprimirPDF, tablaPDF, kpisPDF } = await import('../services/pdf.js');
+  let curvaPng = null;
   // Todo el programa (sin filtros) a la fecha de la última reunión registrada
   const guardado = { reunion: estado.reunion, filtros: { ...filtros } };
   Object.assign(filtros, { texto: '', proceso: '', resp: '', aplica: '', estado: '' });
@@ -797,7 +801,13 @@ async function exportarPDF() {
     // Todo seguido, como en la vista preliminar: cambia de hoja solo cuando se llena. Solo el gráfico no se parte y
     // el título de un proceso no queda solo al pie de una hoja.
     let cuerpo = `<style>h3 { break-after: avoid; page-break-after: avoid; margin-top: 12px; }
-      .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }</style>`;
+      .pa-pdf-graf { break-inside: avoid; page-break-inside: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
+      table.pa-pdf-prog { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5pt; line-height: 1.3; }
+      table.pa-pdf-prog th, table.pa-pdf-prog td { padding: 1.1mm 1mm; vertical-align: top; text-align: left;
+        hyphens: manual; -webkit-hyphens: manual; word-break: normal; overflow-wrap: break-word; }
+      table.pa-pdf-prog th { font-size: 7pt; white-space: normal; }
+      table.pa-pdf-prog td.f, table.pa-pdf-prog td.n { white-space: nowrap; }
+      table.pa-pdf-prog .n { text-align: right; }</style>`;
     cuerpo += `<h2>Programa de Arranque · avance al ${fecha}</h2>` + kpisPDF([
       ['Avance', `${avance}%`, css('--naranja')], ['Terminados', `${cuenta('terminado')}/${apl.length}`, css('--verde')],
       ['Atrasados', String(cuenta('atrasado')), css('--peligro')], ['Por vencer', String(cuenta('por_vencer')), css('--amarillo')],
@@ -809,7 +819,8 @@ async function exportarPDF() {
     ]);
     if (conCurva) {
       cuerpo += `<h2>Curva S</h2><p style="margin:2px 0 6px;font-size:11px;color:#555555">${c.items.length} ítems con fechas programadas · franja ${fmtFecha(c.desde)} – ${fmtFecha(c.hasta)}${c.sinFechas ? ` · ${c.sinFechas} sin fechas no entran en la curva` : ''}</p>`;
-      cuerpo += `<div class="pa-pdf-graf"><img src="${await imagenCurva(c)}" style="width:100%;max-height:330px;object-fit:contain"></div>`;
+      curvaPng = await imagenCurva(c);
+      cuerpo += `<div class="pa-pdf-graf"><img src="${curvaPng}" style="width:100%;max-height:330px;object-fit:contain"></div>`;
       cuerpo += tablaPDF([
         { titulo: 'Fecha rev.', valor: x => fmtFecha(x.f), fecha: true }, { titulo: '% Programado', valor: x => `${x.p}%`, num: true },
         { titulo: '% Real', valor: x => `${x.r}%`, num: true },
@@ -817,6 +828,13 @@ async function exportarPDF() {
         { titulo: 'Índice', valor: x => (x.p > 0 ? (x.r / x.p).toFixed(2) : '—'), num: true },
       ], c.reuniones.slice().reverse());
     }
+    // Anchos fijos (mm, A4 horizontal ≈ 277 mm útiles): las 4 fechas iguales y mínimas; la descripción toma el resto
+    const ANCHO_MM = { It: 7, Area: 24, Aplica: 10, 'Resp.': 21, 'Inicio prog.': 15.5, 'Fin prog.': 15.5, 'Fecha rev.': 15.5,
+      '% Ava. Acu.': 11, 'Fin re-prog.': 15.5, Estado: 15, Comentarios: 36 };
+    const tablaPrograma = (cols, filas) => `<table class="pa-pdf-prog"><colgroup>${cols.map(c =>
+        `<col${ANCHO_MM[c.titulo] ? ` style="width:${ANCHO_MM[c.titulo]}mm"` : ''}>`).join('')}</colgroup>
+      <thead><tr>${cols.map(c => `<th class="${c.num ? 'n' : ''}">${esc(c.titulo)}</th>`).join('')}</tr></thead>
+      <tbody>${filas.map(f => `<tr>${cols.map(c => `<td class="${c.fecha ? 'f' : c.num ? 'n' : ''}"${c.estilo ? ` style="${esc(c.estilo(f))}"` : ''}>${esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const COLOR_ESTADO = { terminado: '--verde', atrasado: '--peligro', por_vencer: '--arena', en_curso: '--azul', por_iniciar: '--gris-texto', sin_definir: '--gris-texto-2', no_aplica: '--gris-texto-2' };
     const columnas = [
       { titulo: 'It', valor: i => i.item_codigo, ancho: 36 },
@@ -835,15 +853,66 @@ async function exportarPDF() {
     for (const proceso of [...new Set(items.map(i => i.proceso))]) {
       const del = items.filter(i => i.proceso === proceso), a = del.filter(i => aplica(i.item_codigo));
       const prom = a.length ? Math.round(a.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / a.length) : 0;
-      const tabla = tablaPDF(columnas, del);
+      const tabla = tablaPrograma(columnas, del);
       const titulo = `<h3>${esc(proceso)} · ${a.filter(i => avanceDe(i.item_codigo) >= 100).length}/${a.length} terminados · ${prom}%</h3>`;
       cuerpo += titulo + tabla;
+    }
+    if (soloDatos) {
+      const fila = i => ({ codigo: i.item_codigo, descripcion: i.descripcion, responsable: respDe(i.item_codigo) || '',
+        fin: finVigente(i.item_codigo) ? fmtFecha(finVigente(i.item_codigo)) : '', avance: avanceDe(i.item_codigo) });
+      return {
+        cuerpo, curvaPng, fecha,
+        resumen: { fecha, avance, programado: prog, real, desviacion: desv, indice: prog > 0 ? Number((real / prog).toFixed(2)) : null,
+          terminados: cuenta('terminado'), aplican: apl.length, atrasados: cuenta('atrasado'), por_vencer: cuenta('por_vencer'),
+          lista_atrasados: apl.filter(i => estadoDe(i.item_codigo) === 'atrasado').map(fila),
+          lista_por_vencer: apl.filter(i => estadoDe(i.item_codigo) === 'por_vencer').map(fila) },
+      };
     }
     imprimirPDF('Programa de Arranque', cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion() });
   } finally {
     estado.reunion = guardado.reunion;
     Object.assign(filtros, guardado.filtros);
   }
+}
+
+// ── Enviar por correo (q37): resumen en HTML + Curva S + PDF adjunto, solo a miembros del proyecto ─────
+
+async function enviarPorCorreo() {
+  // Destinatarios: solo los miembros del proyecto (o de su proyecto, si es un Grupo LPS) con correo registrado
+  const ids = new Set(lideresHeredados(estado.proyId));
+  const miembros = store.perfiles.filter(p => ids.has(p.id) && p.email && p.activo && !p.eliminado)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  if (!miembros.length) {
+    throw new Error('El proyecto no tiene miembros con correo. Agréguelos en Administración → Nivel 3 · Miembros del proyecto.');
+  }
+  const p = proyecto(estado.proyId) || {};
+  const fecha = estado.reuniones.length ? fmtFecha(estado.reuniones.at(-1)) : fmtFecha(hoy());
+  const d = await pedirDatos({
+    titulo: 'Enviar por correo', texto: 'Enviar', ancho: 640,
+    antes: `Se enviará en nombre de <b>${esc(store.usuario.nombre)}</b>: las respuestas le llegarán a ${esc(store.usuario.email || 'su correo')}.
+      Incluye el resumen con la Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
+    campos: [
+      { name: 'para', label: 'Para (miembros del proyecto)', type: 'multiselect', unaColumna: true,
+        options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
+      { name: 'asunto', label: 'Asunto', required: true, full: true },
+      { name: 'mensaje', label: 'Mensaje (opcional)', type: 'textarea', rows: 3 },
+      { name: 'copia', label: 'Copia', type: 'checkbox', texto: 'Enviarme una copia' },
+    ],
+    valores: { asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`, copia: true },
+    alGuardar: async v => { if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.'); },
+  });
+  if (!d) return;
+  ok('Preparando el PDF y enviando…');
+  const { generarArchivoPDF } = await import('../services/pdf.js');
+  const informe = await exportarPDF({ soloDatos: true });
+  const archivo = `CR-PG-SGP-01-F1 Programa de Arranque ${p.codigo || ''} ${informe.fecha.replaceAll('/', '-')}`;
+  const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
+  const r = await api.enviarCorreo({
+    proyecto_id: estado.proyId, para: d.para, copia: !!d.copia, asunto: d.asunto, mensaje: d.mensaje || '',
+    resumen: informe.resumen, curva: informe.curvaPng ? informe.curvaPng.split(',')[1] : null,
+    pdf, pdf_nombre: `${archivo}.pdf`, enlace: `${location.origin}${location.pathname}#/programa-arranque`,
+  });
+  ok(`Correo enviado a ${r.enviados} miembro${r.enviados === 1 ? '' : 's'} del proyecto.`);
 }
 
 // ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
