@@ -107,10 +107,19 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   for (const r of RETIRADAS) if (menu.includes(r)) errores.push(`menú: todavía aparece «${r}»`);
   if (!menu.includes('Información del proyecto')) errores.push('menú: falta «Información del proyecto»');
   // Edición: % avance (verde, reunión de seguimiento) e inicio programado (amarillo, definición)
+  await pagina.locator('[data-modo="seguimiento"]').click();
   await pagina.locator('[data-item-row="1"] [data-campo="avance"]').click();
   await pagina.locator('[data-item-row="1"] [data-campo="avance"] input').fill('40');
   await pagina.keyboard.press('Enter');
   await pagina.waitForTimeout(800);
+  if (!(await pagina.locator('[data-item-row="1"] [data-campo="avance"]').innerText()).includes('40%')) errores.push('programa de arranque: el avance no se muestra');
+  if (!(await pagina.locator('[data-item-row="1"] .pa-estado').innerText()).includes('En curso')) errores.push('programa de arranque: estado del ítem 1 no es «En curso»');
+  // Ficha lateral con su historial
+  await pagina.locator('[data-ficha="1"]').click();
+  await pagina.waitForTimeout(300);
+  if (!(await pagina.locator('.pa-ficha .pa-linea li').count())) errores.push('programa de arranque: la ficha no muestra el historial');
+  await pagina.keyboard.press('Escape');
+  await pagina.locator('[data-modo="definicion"]').click();
   await pagina.locator('[data-item-row="1a"] [data-campo="inicio_programado"]').click();
   await pagina.locator('[data-item-row="1a"] [data-campo="inicio_programado"] input').fill('2026-07-06');
   await pagina.keyboard.press('Enter');
@@ -122,7 +131,6 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   if (det?.inicio_programado !== '2026-07-06' || det?.fin_programado !== '2026-10-04') {
     errores.push(`programa de arranque: inicio/fin programado mal guardados (${det?.inicio_programado} / ${det?.fin_programado})`);
   }
-  if (!(await pagina.locator('[data-item-row="1"] [data-campo="avance"]').innerText()).includes('40%')) errores.push('programa de arranque: el avance no se muestra');
   const fondo = await pagina.evaluate(() => getComputedStyle(document.querySelector('.cabecera') || document.body).display);
   if (!fondo || fondo === 'block') errores.push(`estilos: la cabecera no tiene diseño aplicado (display=${fondo})`);
   await ctx.close();

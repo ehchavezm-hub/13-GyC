@@ -1,42 +1,51 @@
 // Programa de Arranque (CR-PG-SGP-01-F1 r1, pestaña "1.Programa de arranque").
-//   · Definición (cabecera amarilla): se completa en la reunión de definición — responsable, inicio y fin
-//     programado, comentarios. Un valor por ítem (programa_arranque_detalle).
-//   · Seguimiento (cabecera verde): se completa en cada reunión de seguimiento — fecha de revisión, % avance
-//     acumulado, comentarios y fin re-programado. Un registro por ítem y reunión (programa_arranque_seguimiento).
+// Diseño basado en herramientas de referencia:
+//   · Procore (checklists): ítems agrupados por sección con avance "x/y" por sección y ficha del ítem con historial.
+//   · Smartsheet: filas agrupadas por fase (aquí, por Proceso), barras de avance en lugar de números.
+//   · Monday / tablas empresariales: estado en pastillas de color y edición en la misma celda.
+//   · Linear / Notion: panel lateral con el detalle del ítem.
+// Dos vistas, una por tipo de reunión:
+//   · Definición (amarillo): responsable, inicio y fin programado, comentarios — un valor por ítem.
+//   · Seguimiento (verde): % avance acumulado, comentario y fin re-programado — un registro por ítem y reunión.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, sumarDias, libExcel } from '../core/util.js';
-import { error as mostrarError, modal, pedirDatos, ok } from '../ui/ui.js';
+import { error as mostrarError, pedirDatos, ok } from '../ui/ui.js';
 import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
 const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin programado = Inicio programado + 90
+const PROXIMOS_DIAS = 14;          // "por vencer": fin vigente dentro de 14 días
 
-let estado = { proyId: null, programa: null, items: [], detalle: new Map(), seguimientos: [], reunion: null, editable: false, reuniones: [] };
+let estado = {};
+const filtros = { texto: '', proceso: '', resp: '', oblig: false, estado: '' };
+const plegados = new Set();
+const leerModo = () => { try { return localStorage.getItem('gyc-arr-modo'); } catch { return null; } };
+const guardarModo = m => { try { localStorage.setItem('gyc-arr-modo', m); } catch { /* opcional */ } };
 
 export async function render(el) {
   el.innerHTML = '';
-  const proyId = store.proyectoSel;   // id del proyecto elegido en el árbol
+  const proyId = store.proyectoSel;
   if (!haySeleccion() || !proyId) {
     el.innerHTML = '<div class="aviso-vacio"><p>Selecciona un proyecto en el menú para ver su Programa de Arranque.</p></div>';
     return;
   }
-  estado = { proyId, programa: null, items: [], detalle: new Map(), seguimientos: [], reunion: null, editable: puedeEditarProyecto(proyId), reuniones: [] };
+  estado = { proyId, programa: null, items: [], detalle: new Map(), seguimientos: [], reunion: null, reuniones: [],
+    editable: puedeEditarProyecto(proyId), modo: 'seguimiento' };
 
-  const wrap = html(`<div class="pagina-arr">
-    <div class="pagina-cab">
-      <h1>Programa de Arranque</h1>
-      <span class="proy-badge">${esc(nombreSeleccion())}</span>
+  const wrap = html(`<div class="pa">
+    <div class="pa-cab">
+      <div><h1>Programa de Arranque</h1><div class="pa-sub">${esc(nombreSeleccion())} · Formato CR-PG-SGP-01-F1</div></div>
       <span class="flex"></span>
-      <button class="btn btn-sm" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
+      <button class="btn" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
-    <div data-reunion class="arr-reunion"></div>
-    <div data-kpis class="kpis"></div>
-    <div data-filtros class="arr-filtros"></div>
-    <div data-tabla class="arr-tabla-wrap"></div>
+    <div data-kpis class="pa-kpis"></div>
+    <div data-barra class="pa-barra"></div>
+    <div data-tabla class="pa-tabla-wrap"></div>
   </div>`);
   el.append(wrap);
   wrap.querySelector('[data-a="excel"]').addEventListener('click', () => exportarExcel().catch(e => mostrarError(mensajeError(e))));
+  estado.wrap = wrap;
 
   try {
     await medir('programa-arranque.cargar', () => cargarDatos(proyId));
@@ -44,17 +53,17 @@ export async function render(el) {
     mostrarError(mensajeError(e));
     return;
   }
-  pintarTodo(wrap);
+  estado.modo = leerModo() || (estado.reuniones.length ? 'seguimiento' : 'definicion');
+  pintarTodo();
 }
 
-function pintarTodo(wrap) {
-  pintarReunion(wrap);
-  pintarKpis(wrap);
-  pintarFiltros(wrap);
-  pintarTabla(wrap);
+function pintarTodo() {
+  pintarKpis();
+  pintarBarra();
+  pintarTabla();
 }
 
-// ── Carga de datos ────────────────────────────────────────────────────────────
+// ── Datos ─────────────────────────────────────────────────────────────────────
 
 async function cargarDatos(proyId) {
   const [items, programas] = await Promise.all([
@@ -64,7 +73,6 @@ async function cargarDatos(proyId) {
   estado.items = items;
   if (programas.length) estado.programa = programas[0];
   else [estado.programa] = await api.insert('programa_arranque', { proyecto_id: proyId });
-
   const [detalles, seguimientos] = await Promise.all([
     api.list('programa_arranque_detalle', { eq: { programa_id: estado.programa.id } }),
     api.list('programa_arranque_seguimiento', { eq: { programa_id: estado.programa.id }, order: [['fecha_revision', true]] }),
@@ -75,13 +83,31 @@ async function cargarDatos(proyId) {
   estado.reunion = estado.reuniones.at(-1) || hoy();
 }
 
-// Registro de seguimiento de un ítem en la reunión elegida, y el último anterior (referencia)
-const segDe = (codigo, fecha = estado.reunion) => estado.seguimientos.find(s => s.item_codigo === codigo && s.fecha_revision === fecha);
-const segVigente = (codigo, hasta = estado.reunion) => estado.seguimientos
-  .filter(s => s.item_codigo === codigo && s.fecha_revision <= hasta).at(-1);
-const finVigente = (codigo, hasta) => segVigente(codigo, hasta)?.fin_reprogramado || estado.detalle.get(codigo)?.fin_programado || null;
+const det = c => estado.detalle.get(c) || {};
+const segDe = (c, fecha = estado.reunion) => estado.seguimientos.find(s => s.item_codigo === c && s.fecha_revision === fecha);
+const segVigente = (c, hasta = estado.reunion) => estado.seguimientos.filter(s => s.item_codigo === c && s.fecha_revision <= hasta).at(-1);
+const avanceDe = c => Number(segVigente(c)?.avance ?? 0);
+const finVigente = c => segVigente(c)?.fin_reprogramado || det(c).fin_programado || null;
+const respDe = c => { const d = det(c); return d.responsable_id ? (nombre(d.responsable_id) || d.responsable) : d.responsable; };
 
-// ── Usuarios del proyecto (responsables) ──────────────────────────────────────
+/** Estado del ítem a la fecha de la reunión elegida. */
+const ESTADOS = {
+  terminado: { txt: 'Terminado', cls: 'ok' },
+  atrasado: { txt: 'Atrasado', cls: 'mal' },
+  por_vencer: { txt: 'Por vencer', cls: 'aviso' },
+  en_curso: { txt: 'En curso', cls: 'curso' },
+  por_iniciar: { txt: 'Por iniciar', cls: 'neutro' },
+  sin_definir: { txt: 'Sin definir', cls: 'vacio' },
+};
+function estadoDe(c) {
+  const d = det(c), av = avanceDe(c), fin = finVigente(c), ref = estado.reunion;
+  if (av >= 100) return 'terminado';
+  if (fin && fin < ref) return 'atrasado';
+  if (fin && fin <= sumarDias(ref, PROXIMOS_DIAS)) return 'por_vencer';
+  if (av > 0) return 'en_curso';
+  if (!(d.responsable_id || d.responsable) || !d.inicio_programado || !d.fin_programado) return 'sin_definir';
+  return 'por_iniciar';
+}
 
 function usuariosProyecto() {
   const ids = new Set(lideresHeredados(estado.proyId));
@@ -90,163 +116,193 @@ function usuariosProyecto() {
   return { lista: (delProyecto.length ? delProyecto : activos).sort((a, b) => a.nombre.localeCompare(b.nombre)), soloProyecto: delProyecto.length > 0 };
 }
 
-// ── Reunión de seguimiento elegida ────────────────────────────────────────────
-
-function pintarReunion(wrap) {
-  const fechas = [...new Set([...estado.reuniones, estado.reunion])].sort().reverse();
-  const caja = wrap.querySelector('[data-reunion]');
-  caja.innerHTML = `
-    <span class="arr-leyenda arr-def">Definición</span><span class="nota">reunión de definición (un valor por ítem)</span>
-    <span class="arr-leyenda arr-seg">Seguimiento</span>
-    <label>reunión del
-      <select data-sel-reunion class="sel">${fechas.map(f => `<option value="${f}"${f === estado.reunion ? ' selected' : ''}>${fmtFecha(f)}${estado.reuniones.includes(f) ? '' : ' (nueva)'}</option>`).join('')}</select>
-    </label>
-    ${estado.editable ? '<button class="btn btn-sm" data-a="nueva-reunion">＋ Nueva reunión de seguimiento</button>' : ''}
-    <span class="nota">${estado.reuniones.length} reunión(es) registrada(s)</span>`;
-  caja.querySelector('[data-sel-reunion]').addEventListener('change', e => { estado.reunion = e.target.value; pintarTodo(wrap); });
-  caja.querySelector('[data-a="nueva-reunion"]')?.addEventListener('click', async () => {
-    const d = await pedirDatos({
-      titulo: 'Nueva reunión de seguimiento',
-      antes: 'Las columnas verdes se llenarán para esta fecha. Los valores de reuniones anteriores se conservan en el historial.',
-      campos: [{ name: 'fecha', label: 'Fecha de revisión', type: 'date', required: true }],
-      valores: { fecha: hoy() },
-    });
-    if (!d?.fecha) return;
-    estado.reunion = d.fecha;
-    pintarTodo(wrap);
-  });
-}
+const iniciales = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+const barra = (pct, cls = '') => `<span class="pa-bar ${cls}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>`;
 
 // ── Indicadores ───────────────────────────────────────────────────────────────
 
-function pintarKpis(wrap) {
-  const items = estado.items;
-  const det = c => estado.detalle.get(c) || {};
-  const conResp = items.filter(i => det(i.item_codigo).responsable_id || det(i.item_codigo).responsable).length;
-  const conFechas = items.filter(i => det(i.item_codigo).inicio_programado && det(i.item_codigo).fin_programado).length;
-  const avances = items.map(i => Number(segVigente(i.item_codigo)?.avance ?? 0));
-  const promedio = items.length ? Math.round(avances.reduce((s, x) => s + x, 0) / items.length) : 0;
-  const terminados = avances.filter(a => a >= 100).length;
-  const atrasados = items.filter(i => {
-    const fin = finVigente(i.item_codigo, estado.reunion);
-    return fin && fin < estado.reunion && Number(segVigente(i.item_codigo)?.avance ?? 0) < 100;
-  }).length;
-  const tile = (v, l, clase = '', t = '') => `<div class="kpi-tile" title="${esc(t)}"><span class="kpi-val ${clase}">${v}</span><span class="kpi-lbl">${l}</span></div>`;
-  wrap.querySelector('[data-kpis]').innerHTML =
-    tile(items.length, 'Ítems totales') +
-    tile(items.filter(i => i.obligatorio).length, 'Obligatorios') +
-    tile(`${conResp}/${items.length}`, 'Con responsable') +
-    tile(`${conFechas}/${items.length}`, 'Con fechas programadas') +
-    tile(`${promedio}%`, 'Avance promedio', promedio >= 80 ? 'verde' : promedio >= 50 ? 'naranja' : '', `Al ${fmtFecha(estado.reunion)}`) +
-    tile(terminados, 'Terminados (100%)', 'verde') +
-    tile(atrasados, 'Atrasados', atrasados ? 'rojo' : '', `Fin programado o re-programado anterior al ${fmtFecha(estado.reunion)} y sin 100%`);
+function pintarKpis() {
+  const items = estado.items, n = items.length || 1;
+  const est = items.map(i => estadoDe(i.item_codigo));
+  const cuenta = k => est.filter(x => x === k).length;
+  const promedio = Math.round(items.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / n);
+  const oblig = items.filter(i => i.obligatorio);
+  const obligOk = oblig.filter(i => avanceDe(i.item_codigo) >= 100).length;
+  const sinResp = items.filter(i => !(det(i.item_codigo).responsable_id || det(i.item_codigo).responsable)).length;
+  const tarjeta = (clave, valor, etiqueta, pie, cls = '') => `<button class="pa-kpi ${cls}${filtros.estado === clave ? ' activo' : ''}" data-kpi="${clave}" title="Filtrar la tabla">
+    <span class="pa-kpi-val">${valor}</span><span class="pa-kpi-lbl">${etiqueta}</span>${pie ? `<span class="pa-kpi-pie">${pie}</span>` : ''}</button>`;
+  const caja = estado.wrap.querySelector('[data-kpis]');
+  caja.innerHTML = `<div class="pa-kpi pa-kpi-avance">
+      <span class="pa-kpi-lbl">Avance del programa · al ${fmtFecha(estado.reunion)}</span>
+      <span class="pa-kpi-val">${promedio}%</span>${barra(promedio, 'grande')}
+      <span class="pa-kpi-pie">${cuenta('terminado')} de ${items.length} ítems terminados · obligatorios ${obligOk}/${oblig.length}</span></div>
+    ${tarjeta('atrasado', cuenta('atrasado'), 'Atrasados', 'fin vencido sin 100%', 'mal')}
+    ${tarjeta('por_vencer', cuenta('por_vencer'), 'Por vencer', `próximos ${PROXIMOS_DIAS} días`, 'aviso')}
+    ${tarjeta('en_curso', cuenta('en_curso'), 'En curso', 'con avance', 'curso')}
+    ${tarjeta('sin_definir', cuenta('sin_definir'), 'Sin definir', `${sinResp} sin responsable`, 'vacio')}`;
+  caja.onclick = e => {
+    const k = e.target.closest('[data-kpi]')?.dataset.kpi;
+    if (!k) return;
+    filtros.estado = filtros.estado === k ? '' : k;
+    pintarKpis(); pintarTabla();
+  };
 }
 
-// ── Filtros ───────────────────────────────────────────────────────────────────
+// ── Barra de herramientas: vista, reunión y filtros ───────────────────────────
 
-const filtros = { proceso: '', oblig: false, resp: '' };
-
-function pintarFiltros(wrap) {
+function pintarBarra() {
   const procesos = [...new Set(estado.items.map(i => i.proceso))];
   const { lista } = usuariosProyecto();
-  const caja = wrap.querySelector('[data-filtros]');
+  const fechas = [...new Set([...estado.reuniones, estado.reunion])].sort().reverse();
+  const seg = estado.modo === 'seguimiento';
+  const caja = estado.wrap.querySelector('[data-barra]');
   caja.innerHTML = `
-    <label>Proceso: <select data-f="proceso" class="sel"><option value="">Todos</option>
-      ${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
-    <label>Responsable: <select data-f="resp" class="sel"><option value="">Todos</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin asignar</option>
-      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === filtros.resp ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></label>
-    <label><input type="checkbox" data-f="oblig"${filtros.oblig ? ' checked' : ''}> Solo obligatorios</label>
-    ${estado.editable ? '<span class="nota">Haga clic en una celda para editarla.</span>' : '<span class="nota">Solo lectura.</span>'}`;
-  caja.addEventListener('change', e => {
+    <div class="pa-vistas" role="tablist">
+      <button role="tab" data-modo="definicion" class="def${seg ? '' : ' activo'}" aria-selected="${!seg}">Definición</button>
+      <button role="tab" data-modo="seguimiento" class="seg${seg ? ' activo' : ''}" aria-selected="${seg}">Seguimiento</button>
+    </div>
+    ${seg ? `<label class="pa-reunion">Reunión del
+        <select data-f="reunion">${fechas.map(f => `<option value="${f}"${f === estado.reunion ? ' selected' : ''}>${fmtFecha(f)}${estado.reuniones.includes(f) ? '' : ' (nueva)'}</option>`).join('')}</select></label>
+      ${estado.editable ? '<button class="btn btn-sm" data-a="nueva">＋ Nueva reunión</button>' : ''}`
+      : '<span class="pa-nota">Se completa en la reunión de definición.</span>'}
+    <span class="flex"></span>
+    <input type="search" class="pa-buscar" data-f="texto" placeholder="Buscar ítem o actividad…" value="${esc(filtros.texto)}">
+    <select data-f="proceso"><option value="">Todos los procesos</option>${procesos.map(p => `<option${p === filtros.proceso ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
+    <select data-f="resp"><option value="">Todos los responsables</option><option value="-"${filtros.resp === '-' ? ' selected' : ''}>Sin responsable</option>
+      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === filtros.resp ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select>
+    <label class="pa-chip"><input type="checkbox" data-f="oblig"${filtros.oblig ? ' checked' : ''}> Solo obligatorios</label>`;
+  caja.onclick = async e => {
+    const m = e.target.closest('[data-modo]')?.dataset.modo;
+    if (m && m !== estado.modo) { estado.modo = m; guardarModo(m); pintarBarra(); pintarTabla(); return; }
+    if (e.target.closest('[data-a="nueva"]')) {
+      const d = await pedirDatos({
+        titulo: 'Nueva reunión de seguimiento',
+        antes: 'El avance, los comentarios y el fin re-programado se registrarán para esta fecha. Las reuniones anteriores quedan en el historial de cada ítem.',
+        campos: [{ name: 'fecha', label: 'Fecha de revisión', type: 'date', required: true }], valores: { fecha: hoy() },
+      });
+      if (!d?.fecha) return;
+      estado.reunion = d.fecha;
+      pintarTodo();
+    }
+  };
+  caja.oninput = e => { if (e.target.dataset.f === 'texto') { filtros.texto = e.target.value; pintarTabla(); } };
+  caja.onchange = e => {
     const f = e.target.dataset.f;
-    if (!f) return;
+    if (!f || f === 'texto') return;
+    if (f === 'reunion') { estado.reunion = e.target.value; pintarTodo(); return; }
     filtros[f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    pintarTabla(wrap);
+    pintarTabla();
+  };
+}
+
+// ── Tabla agrupada por Proceso ────────────────────────────────────────────────
+
+function filtrados() {
+  const t = filtros.texto.trim().toLowerCase();
+  return estado.items.filter(i => {
+    const d = det(i.item_codigo);
+    return (!filtros.proceso || i.proceso === filtros.proceso) && (!filtros.oblig || i.obligatorio) &&
+      (!filtros.resp || (filtros.resp === '-' ? !d.responsable_id && !d.responsable : d.responsable_id === filtros.resp)) &&
+      (!filtros.estado || estadoDe(i.item_codigo) === filtros.estado) &&
+      (!t || `${i.item_codigo} ${i.descripcion} ${i.area_lider} ${i.proceso}`.toLowerCase().includes(t));
   });
 }
 
-// ── Tabla principal ───────────────────────────────────────────────────────────
-
-function pintarTabla(wrap) {
-  const items = estado.items.filter(i => {
-    const d = estado.detalle.get(i.item_codigo) || {};
-    return (!filtros.proceso || i.proceso === filtros.proceso) && (!filtros.oblig || i.obligatorio) &&
-      (!filtros.resp || (filtros.resp === '-' ? !d.responsable_id && !d.responsable : d.responsable_id === filtros.resp));
-  });
+function pintarTabla() {
+  const seg = estado.modo === 'seguimiento';
   const ed = estado.editable ? ' data-editable' : '';
+  const items = filtrados();
+  const grupos = [];
+  for (const i of items) {
+    let g = grupos.find(x => x.proceso === i.proceso);
+    if (!g) grupos.push(g = { proceso: i.proceso, items: [] });
+    g.items.push(i);
+  }
+  const ncols = seg ? 9 : 8;
 
-  const filas = items.map(item => {
-    const c = item.item_codigo;
-    const d = estado.detalle.get(c) || {};
-    const s = segDe(c);
-    const ref = !s && segVigente(c);       // sin registro en esta reunión: se muestra el último, en gris
-    const seg = s || ref || {};
-    const n = estado.seguimientos.filter(x => x.item_codigo === c).length;
-    const fin = finVigente(c, estado.reunion);
-    const atrasado = fin && fin < estado.reunion && Number(seg.avance ?? 0) < 100;
-    const resp = d.responsable_id ? (nombre(d.responsable_id) || d.responsable) : d.responsable;
-    return `<tr class="${item.obligatorio ? '' : 'row-opc'}${atrasado ? ' arr-atrasado' : ''}" data-item-row="${esc(c)}">
-      <td class="col-item">${esc(c)}</td>
-      <td class="col-proceso">${esc(item.proceso)}</td>
-      <td class="col-area">${esc(item.area_lider)}</td>
-      <td class="col-oblig">${item.obligatorio ? 'Sí' : ''}</td>
-      <td class="col-desc">${esc(item.descripcion)}</td>
-      <td class="col-resp"${ed} data-campo="responsable_id">${esc(resp || '')}</td>
-      <td class="col-fecha"${ed} data-campo="inicio_programado">${d.inicio_programado ? fmtFecha(d.inicio_programado) : ''}</td>
-      <td class="col-fecha"${ed} data-campo="fin_programado">${d.fin_programado ? fmtFecha(d.fin_programado) : ''}</td>
-      <td class="col-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>
-      <td class="col-fecha col-seg${ref ? ' arr-ref' : ''}" title="${ref ? `Sin registro en esta reunión: se muestra la revisión del ${fmtFecha(ref.fecha_revision)}` : ''}">
-        ${seg.fecha_revision ? fmtFecha(seg.fecha_revision) : ''}${n ? ` <button class="btn-icono arr-hist" data-hist="${esc(c)}" title="Historial de seguimiento (${n})">🕘</button>` : ''}</td>
-      <td class="col-avance col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="avance">${seg.avance != null ? `${Number(seg.avance)}%` : ''}</td>
-      <td class="col-com col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="comentarios">${esc(seg.comentarios || '')}</td>
-      <td class="col-fecha col-seg${ref ? ' arr-ref' : ''}"${ed} data-seg data-campo="fin_reprogramado">${seg.fin_reprogramado ? fmtFecha(seg.fin_reprogramado) : ''}</td>
-    </tr>`;
+  const cab = seg
+    ? `<tr><th class="c-cod">Ítem</th><th>Actividad</th><th class="c-resp">Responsable</th><th class="c-fecha">Fin vigente</th>
+        <th class="c-est">Estado</th><th class="c-av seg">% Avance acumulado</th><th class="c-com seg">Comentario de la reunión</th>
+        <th class="c-fecha seg">Fin re-programado</th><th class="c-mas"></th></tr>`
+    : `<tr><th class="c-cod">Ítem</th><th>Actividad</th><th class="c-resp def">Responsable</th><th class="c-fecha def">Inicio programado</th>
+        <th class="c-fecha def">Fin programado</th><th class="c-dur">Duración</th><th class="c-com def">Comentarios</th><th class="c-mas"></th></tr>`;
+
+  const fila = i => {
+    const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c);
+    const actividad = `<td class="c-act"><div class="pa-desc">${esc(i.descripcion)}</div>
+      <div class="pa-meta">${esc(i.area_lider)}${i.obligatorio ? '<span class="pa-oblig">Obligatorio</span>' : '<span class="pa-opc">Opcional</span>'}</div></td>`;
+    const resp = `<td class="c-resp"${ed} data-campo="responsable_id">${r ? `<span class="pa-avatar">${esc(iniciales(r))}</span><span class="pa-resp-n">${esc(r)}</span>` : '<span class="pa-vacio">Asignar</span>'}</td>`;
+    if (!seg) {
+      const dur = d.inicio_programado && d.fin_programado ? Math.round((new Date(d.fin_programado) - new Date(d.inicio_programado)) / 86400000) : null;
+      return `<tr data-item-row="${esc(c)}" class="${i.obligatorio ? '' : 'opc'}">
+        <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${actividad}${resp}
+        <td class="c-fecha"${ed} data-campo="inicio_programado">${d.inicio_programado ? fmtFecha(d.inicio_programado) : '<span class="pa-vacio">—</span>'}</td>
+        <td class="c-fecha"${ed} data-campo="fin_programado">${d.fin_programado ? fmtFecha(d.fin_programado) : '<span class="pa-vacio">—</span>'}</td>
+        <td class="c-dur">${dur !== null ? `${dur} d` : ''}</td>
+        <td class="c-com"${ed} data-campo="comentarios">${esc(d.comentarios || '')}</td>
+        <td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha del ítem">›</button></td></tr>`;
+    }
+    const s = segDe(c), ref = !s && segVigente(c), v = s || ref || {};
+    const av = v.avance != null ? Number(v.avance) : null;
+    const fin = finVigente(c);
+    return `<tr data-item-row="${esc(c)}" class="${i.obligatorio ? '' : 'opc'}">
+      <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${actividad}${resp}
+      <td class="c-fecha${k === 'atrasado' ? ' tarde' : ''}">${fin ? fmtFecha(fin) : '<span class="pa-vacio">—</span>'}</td>
+      <td class="c-est"><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span></td>
+      <td class="c-av${ref ? ' ref' : ''}"${ed} data-seg data-campo="avance" title="${ref ? `Último registro: reunión del ${fmtFecha(ref.fecha_revision)}` : ''}">
+        ${av !== null ? `<span class="pa-av">${barra(av, av >= 100 ? 'ok' : '')}<b>${av}%</b></span>` : '<span class="pa-vacio">0%</span>'}</td>
+      <td class="c-com${ref ? ' ref' : ''}"${ed} data-seg data-campo="comentarios">${esc(v.comentarios || '')}</td>
+      <td class="c-fecha${ref ? ' ref' : ''}"${ed} data-seg data-campo="fin_reprogramado">${v.fin_reprogramado ? fmtFecha(v.fin_reprogramado) : ''}</td>
+      <td class="c-mas"><button class="pa-mas" data-ficha="${esc(c)}" title="Abrir ficha e historial">›</button></td></tr>`;
+  };
+
+  const cuerpo = grupos.map(g => {
+    const terminados = g.items.filter(i => avanceDe(i.item_codigo) >= 100).length;
+    const prom = Math.round(g.items.reduce((s, i) => s + avanceDe(i.item_codigo), 0) / g.items.length);
+    const atr = g.items.filter(i => estadoDe(i.item_codigo) === 'atrasado').length;
+    const cerrado = plegados.has(g.proceso);
+    return `<tbody class="pa-grupo${cerrado ? ' plegado' : ''}">
+      <tr class="pa-grupo-cab" data-grupo="${esc(g.proceso)}"><td colspan="${ncols}"><div class="pa-grupo-in">
+        <span class="pa-flecha">${cerrado ? '▸' : '▾'}</span><b>${esc(g.proceso)}</b>
+        <span class="pa-grupo-n">${terminados}/${g.items.length} terminados</span>${barra(prom)}<span class="pa-grupo-n">${prom}%</span>
+        ${atr ? `<span class="pa-estado mal">${atr} atrasado${atr > 1 ? 's' : ''}</span>` : ''}</div></td></tr>
+      ${cerrado ? '' : g.items.map(fila).join('')}</tbody>`;
   }).join('');
 
-  const tabla = wrap.querySelector('[data-tabla]');
-  tabla.innerHTML = `<div class="arr-tabla-scroll"><table class="arr-tabla">
-    <thead>
-      <tr class="arr-grupos"><th colspan="9" class="arr-def">Definición — reunión de definición</th>
-        <th colspan="4" class="arr-seg">Seguimiento — reunión del ${fmtFecha(estado.reunion)}</th></tr>
-      <tr>
-        <th class="arr-def col-item">Ítem</th><th class="arr-def">Proceso</th><th class="arr-def">Área Líder</th>
-        <th class="arr-def">Obligatorio</th><th class="arr-def">Descripción de Actividades</th><th class="arr-def">Responsable</th>
-        <th class="arr-def">Inicio programado</th><th class="arr-def">Fin programado</th><th class="arr-def">Comentarios</th>
-        <th class="arr-seg">Fecha de revisión</th><th class="arr-seg">% Avance Acumulado</th><th class="arr-seg">Comentarios</th>
-        <th class="arr-seg">Fin re-programado</th>
-      </tr>
-    </thead>
-    <tbody>${filas || '<tr><td colspan="13" class="nota">Sin ítems con estos filtros.</td></tr>'}</tbody>
-  </table></div>`;
+  const tabla = estado.wrap.querySelector('[data-tabla]');
+  tabla.innerHTML = `<table class="pa-tabla ${seg ? 'modo-seg' : 'modo-def'}"><thead>${cab}</thead>
+    ${cuerpo || `<tbody><tr><td colspan="${ncols}" class="pa-sin">No hay ítems con estos filtros.</td></tr></tbody>`}</table>
+    <p class="pa-pie">${items.length} de ${estado.items.length} ítems${estado.editable ? ' · Haga clic en una celda para editarla; «›» abre la ficha del ítem con su historial.' : ' · Solo lectura.'}</p>`;
   tabla.onclick = e => {
-    const h = e.target.closest('[data-hist]');
-    if (h) return mostrarHistorial(h.dataset.hist);
+    const g = e.target.closest('[data-grupo]');
+    if (g) { const p = g.dataset.grupo; plegados.has(p) ? plegados.delete(p) : plegados.add(p); pintarTabla(); return; }
+    const f = e.target.closest('[data-ficha]');
+    if (f) return abrirFicha(f.dataset.ficha);
     const td = e.target.closest('[data-editable]');
-    if (td && !td.querySelector('input,select')) editarCelda(wrap, td);
+    if (td && !td.querySelector('input,select')) editarCelda(td);
   };
 }
 
 // ── Edición en la celda ───────────────────────────────────────────────────────
 
-function editarCelda(wrap, td) {
+function control(campo, actual) {
+  if (campo === 'responsable_id') {
+    const { lista, soloProyecto } = usuariosProyecto();
+    return `<select class="cel-input"><option value="">— Sin asignar —</option>
+      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === actual ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}
+      ${soloProyecto ? '' : '<option disabled>(el proyecto aún no tiene miembros: se listan todos)</option>'}</select>`;
+  }
+  if (campo === 'avance') return `<input type="number" class="cel-input" min="0" max="100" step="5" value="${actual ?? ''}" placeholder="%">`;
+  if (/programado|reprogramado/.test(campo)) return `<input type="date" class="cel-input" value="${actual || ''}">`;
+  return `<input type="text" class="cel-input" value="${esc(actual || '')}">`;
+}
+
+function editarCelda(td) {
   const codigo = td.closest('[data-item-row]').dataset.itemRow;
   const campo = td.dataset.campo;
   const esSeg = td.hasAttribute('data-seg');
-  const actual = esSeg ? segDe(codigo)?.[campo] : estado.detalle.get(codigo)?.[campo];
-  let control;
-  if (campo === 'responsable_id') {
-    const { lista, soloProyecto } = usuariosProyecto();
-    control = `<select class="cel-input"><option value="">— Sin asignar —</option>
-      ${lista.map(u => `<option value="${esc(u.id)}"${u.id === actual ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}
-      ${soloProyecto ? '' : '<option disabled>(el proyecto aún no tiene miembros: se listan todos los usuarios)</option>'}</select>`;
-  } else if (campo === 'avance') {
-    control = `<input type="number" class="cel-input" min="0" max="100" step="1" value="${actual ?? ''}" placeholder="%">`;
-  } else if (/programado|reprogramado/.test(campo)) {
-    control = `<input type="date" class="cel-input" value="${actual || ''}">`;
-  } else {
-    control = `<input type="text" class="cel-input" value="${esc(actual || '')}">`;
-  }
-  td.innerHTML = control;
+  const actual = esSeg ? segDe(codigo)?.[campo] : det(codigo)[campo];
+  td.innerHTML = control(campo, actual);
   const inp = td.querySelector('input,select');
   inp.focus();
   let terminado = false;
@@ -254,14 +310,12 @@ function editarCelda(wrap, td) {
     if (terminado) return;
     terminado = true;
     if (guardar) {
-      const v = inp.value.trim();
       try {
-        if (esSeg) await guardarSeguimiento(codigo, campo, v);
-        else await guardarDefinicion(codigo, campo, v);
+        if (esSeg) await guardarSeguimiento(codigo, { [campo]: inp.value.trim() });
+        else await guardarDefinicion(codigo, { [campo]: inp.value.trim() });
       } catch (e) { mostrarError(mensajeError(e)); }
     }
-    pintarKpis(wrap);
-    pintarTabla(wrap);
+    pintarKpis(); pintarTabla();
   };
   inp.addEventListener('blur', () => terminar(true));
   if (inp.tagName === 'SELECT') inp.addEventListener('change', () => inp.blur());
@@ -271,52 +325,99 @@ function editarCelda(wrap, td) {
   });
 }
 
-async function guardarDefinicion(codigo, campo, v) {
-  const det = estado.detalle.get(codigo) || {};
-  const cambios = { [campo]: v || null };
-  if (campo === 'responsable_id') cambios.responsable = v ? nombre(v) : null;
+async function guardarDefinicion(codigo, valores) {
+  const d = det(codigo);
+  const cambios = {};
+  for (const [k, v] of Object.entries(valores)) cambios[k] = v === '' || v == null ? null : v;
+  if ('responsable_id' in cambios) cambios.responsable = cambios.responsable_id ? nombre(cambios.responsable_id) : null;
+  const inicio = cambios.inicio_programado !== undefined ? cambios.inicio_programado : d.inicio_programado;
+  let fin = cambios.fin_programado !== undefined ? cambios.fin_programado : d.fin_programado;
   // Como en el formato: si no tiene fin programado, se propone inicio + 90 días
-  if (campo === 'inicio_programado' && v && !det.fin_programado) cambios.fin_programado = sumarDias(v, DIAS_FIN_POR_DEFECTO);
-  if (campo === 'fin_programado' && v && det.inicio_programado && v < det.inicio_programado) {
-    throw new Error('El fin programado no puede ser anterior al inicio programado.');
-  }
+  if (cambios.inicio_programado && !fin) fin = cambios.fin_programado = sumarDias(cambios.inicio_programado, DIAS_FIN_POR_DEFECTO);
+  if (inicio && fin && fin < inicio) throw new Error('El fin programado no puede ser anterior al inicio programado.');
   const [g] = await api.upsert('programa_arranque_detalle',
     { programa_id: estado.programa.id, item_codigo: codigo, ...cambios }, 'programa_id,item_codigo');
-  estado.detalle.set(codigo, { ...det, ...g });
+  estado.detalle.set(codigo, { ...d, ...g });
 }
 
-async function guardarSeguimiento(codigo, campo, v) {
-  let valor = v || null;
-  if (campo === 'avance' && valor !== null) {
-    valor = Number(valor);
-    if (!(valor >= 0 && valor <= 100)) throw new Error('El % de avance debe estar entre 0 y 100.');
-    const previo = estado.seguimientos.filter(s => s.item_codigo === codigo && s.fecha_revision < estado.reunion).at(-1);
-    if (previo?.avance != null && valor < Number(previo.avance)) {
-      ok(`Atención: el avance acumulado baja de ${Number(previo.avance)}% a ${valor}%.`);
+async function guardarSeguimiento(codigo, valores, fecha = estado.reunion) {
+  const cambios = {};
+  for (const [k, v] of Object.entries(valores)) cambios[k] = v === '' || v == null ? null : v;
+  if (cambios.avance != null) {
+    cambios.avance = Number(cambios.avance);
+    if (!(cambios.avance >= 0 && cambios.avance <= 100)) throw new Error('El % de avance debe estar entre 0 y 100.');
+    const previo = estado.seguimientos.filter(s => s.item_codigo === codigo && s.fecha_revision < fecha).at(-1);
+    if (previo?.avance != null && cambios.avance < Number(previo.avance)) {
+      ok(`Atención: el avance acumulado baja de ${Number(previo.avance)}% a ${cambios.avance}%.`);
     }
   }
   const [g] = await api.upsert('programa_arranque_seguimiento',
-    { programa_id: estado.programa.id, item_codigo: codigo, fecha_revision: estado.reunion, [campo]: valor },
-    'programa_id,item_codigo,fecha_revision');
+    { programa_id: estado.programa.id, item_codigo: codigo, fecha_revision: fecha, ...cambios }, 'programa_id,item_codigo,fecha_revision');
   estado.seguimientos = estado.seguimientos.filter(s => s.id !== g.id).concat(g)
     .sort((a, b) => a.fecha_revision.localeCompare(b.fecha_revision));
-  if (!estado.reuniones.includes(estado.reunion)) estado.reuniones = [...estado.reuniones, estado.reunion].sort();
+  if (!estado.reuniones.includes(fecha)) estado.reuniones = [...estado.reuniones, fecha].sort();
 }
 
-// ── Historial de seguimiento de un ítem ───────────────────────────────────────
+// ── Ficha del ítem (panel lateral) ────────────────────────────────────────────
 
-function mostrarHistorial(codigo) {
-  const item = estado.items.find(i => i.item_codigo === codigo);
-  const filas = estado.seguimientos.filter(s => s.item_codigo === codigo).slice().reverse();
-  modal({
-    titulo: `Seguimiento del ítem ${codigo}`, ancho: 720,
-    cuerpo: `<p class="nota">${esc(item?.descripcion || '')}</p>
-      <table class="arr-tabla"><thead><tr><th class="arr-seg">Fecha de revisión</th><th class="arr-seg">% Avance</th>
-        <th class="arr-seg">Comentarios</th><th class="arr-seg">Fin re-programado</th><th class="arr-seg">Registró</th></tr></thead>
-      <tbody>${filas.map(s => `<tr><td>${fmtFecha(s.fecha_revision)}</td><td>${s.avance != null ? Number(s.avance) + '%' : ''}</td>
-        <td style="white-space:normal">${esc(s.comentarios || '')}</td><td>${s.fin_reprogramado ? fmtFecha(s.fin_reprogramado) : ''}</td>
-        <td>${esc(nombre(s.created_by) || '')}</td></tr>`).join('')}</tbody></table>`,
-  });
+function abrirFicha(codigo) {
+  document.querySelector('.pa-ficha-fondo')?.remove();
+  const i = estado.items.find(x => x.item_codigo === codigo);
+  const d = det(codigo), k = estadoDe(codigo), av = avanceDe(codigo);
+  const hist = estado.seguimientos.filter(s => s.item_codigo === codigo).slice().reverse();
+  const s = segDe(codigo) || {};
+  const { lista } = usuariosProyecto();
+  const dis = estado.editable ? '' : ' disabled';
+  const fondo = html(`<div class="pa-ficha-fondo"><aside class="pa-ficha" role="dialog" aria-label="Ficha del ítem ${esc(codigo)}">
+    <div class="pa-ficha-cab"><span class="pa-cod">${esc(codigo)}</span><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span>
+      <span class="flex"></span><button class="btn-icono" data-cerrar aria-label="Cerrar">✕</button></div>
+    <h2>${esc(i.descripcion)}</h2>
+    <div class="pa-ficha-meta"><span>${esc(i.proceso)}</span><span>${esc(i.area_lider)}</span>${i.obligatorio ? '<span class="pa-oblig">Obligatorio</span>' : '<span class="pa-opc">Opcional</span>'}</div>
+    <div class="pa-ficha-av">${barra(av, 'grande')}<b>${av}%</b><span class="pa-vacio">avance acumulado al ${fmtFecha(estado.reunion)}</span></div>
+
+    <section class="pa-sec def"><h3>Definición</h3>
+      <form data-form="def" class="pa-form">
+        <label>Responsable<select name="responsable_id"${dis}><option value="">— Sin asignar —</option>
+          ${lista.map(u => `<option value="${esc(u.id)}"${u.id === d.responsable_id ? ' selected' : ''}>${esc(u.nombre)}</option>`).join('')}</select></label>
+        <label>Inicio programado<input type="date" name="inicio_programado" value="${d.inicio_programado || ''}"${dis}></label>
+        <label>Fin programado<input type="date" name="fin_programado" value="${d.fin_programado || ''}"${dis}></label>
+        <label class="full">Comentarios<textarea name="comentarios" rows="2"${dis}>${esc(d.comentarios || '')}</textarea></label>
+        ${estado.editable ? '<button class="btn btn-primario" type="submit">Guardar definición</button>' : ''}
+      </form></section>
+
+    <section class="pa-sec seg"><h3>Seguimiento · reunión del ${fmtFecha(estado.reunion)}</h3>
+      <form data-form="seg" class="pa-form">
+        <label>% Avance acumulado<input type="number" name="avance" min="0" max="100" step="5" value="${s.avance ?? ''}"${dis}></label>
+        <label>Fin re-programado<input type="date" name="fin_reprogramado" value="${s.fin_reprogramado || ''}"${dis}></label>
+        <label class="full">Comentario de la reunión<textarea name="comentarios" rows="2"${dis}>${esc(s.comentarios || '')}</textarea></label>
+        ${estado.editable ? '<button class="btn btn-primario" type="submit">Guardar seguimiento</button>' : ''}
+      </form></section>
+
+    <section class="pa-sec"><h3>Historial de seguimiento</h3>
+      ${hist.length ? `<ol class="pa-linea">${hist.map(h => `<li><div class="pa-linea-cab"><b>${fmtFecha(h.fecha_revision)}</b>
+          ${h.avance != null ? `<span class="pa-av">${barra(Number(h.avance))}<b>${Number(h.avance)}%</b></span>` : ''}</div>
+          ${h.comentarios ? `<p>${esc(h.comentarios)}</p>` : ''}
+          <small>${h.fin_reprogramado ? `Fin re-programado: ${fmtFecha(h.fin_reprogramado)} · ` : ''}${esc(nombre(h.created_by) || '')}</small></li>`).join('')}</ol>`
+        : '<p class="pa-vacio">Sin registros de seguimiento todavía.</p>'}
+    </section></aside></div>`);
+  document.body.append(fondo);
+  const cerrar = () => { fondo.remove(); document.removeEventListener('keydown', tecla); };
+  const tecla = e => { if (e.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', tecla);
+  fondo.addEventListener('mousedown', e => { if (e.target === fondo) cerrar(); });
+  fondo.querySelector('[data-cerrar]').onclick = cerrar;
+  fondo.querySelectorAll('form').forEach(f => f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const datos = Object.fromEntries(new FormData(f));
+    try {
+      if (f.dataset.form === 'def') await guardarDefinicion(codigo, datos);
+      else await guardarSeguimiento(codigo, datos);
+      ok('Guardado.');
+      pintarTodo();
+      cerrar();
+      abrirFicha(codigo);
+    } catch (err) { mostrarError(mensajeError(err)); }
+  }));
 }
 
 // ── Excel en el formato CR-PG-SGP-01-F1 ───────────────────────────────────────
@@ -328,13 +429,12 @@ async function exportarExcel() {
   const datos = CAMPOS_INFO.map(c => [c.label, c.name === 'nombre_completo' ? (p.nombre_completo || p.nombre_corto) : (p[c.name] || '')]);
   XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], ...datos.map(r => ['', ...r])]), '0.Datos');
   const cab = ['Ítem', 'Proceso', 'Área Líder', 'Obligatorio', 'Descripción de Actividades', 'Responsable', 'Inicio programado',
-    'Fin programado', 'Comentarios', '', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios', 'Fin re-programado'];
+    'Fin programado', 'Comentarios', '', 'Fecha de revisión', '% Avance Acumulado', 'Comentarios', 'Fin re-programado', 'Estado'];
   const filas = estado.items.map(i => {
-    const d = estado.detalle.get(i.item_codigo) || {};
-    const s = segVigente(i.item_codigo) || {};
-    return [i.item_codigo, i.proceso, i.area_lider, i.obligatorio ? 'Sí' : '', i.descripcion,
-      d.responsable_id ? nombre(d.responsable_id) || d.responsable : d.responsable || '', d.inicio_programado || '', d.fin_programado || '',
-      d.comentarios || '', '', s.fecha_revision || '', s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '', s.fin_reprogramado || ''];
+    const d = det(i.item_codigo), s = segVigente(i.item_codigo) || {};
+    return [i.item_codigo, i.proceso, i.area_lider, i.obligatorio ? 'Sí' : '', i.descripcion, respDe(i.item_codigo) || '',
+      d.inicio_programado || '', d.fin_programado || '', d.comentarios || '', '', s.fecha_revision || '',
+      s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '', s.fin_reprogramado || '', ESTADOS[estadoDe(i.item_codigo)].txt];
   });
   XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([[], cab, ...filas]), '1.Programa de arranque');
   const hist = estado.seguimientos.map(s => [s.item_codigo, s.fecha_revision, s.avance != null ? Number(s.avance) / 100 : '', s.comentarios || '',
