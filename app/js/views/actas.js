@@ -421,24 +421,25 @@ async function pdfActa(e) {
 // ── Excel y PDF de la pantalla principal (Nueva acta · Log de reuniones) ──────────────────────────
 // Formato: hoja «Actas» (una fila por acta), «Asistentes» y «Acuerdos» (ambas con el N° de acta). Lo que exporta
 // «Exportar Excel» se vuelve a importar tal cual; desde «Nueva acta» se descarga el mismo formato en blanco.
-const CAB_ACTAS = ['N° reunión', 'Tipo', 'Asunto', 'Código', 'Lugar', 'Fecha', 'Hora', 'Duración', 'Estado'];
+// Una sola hoja «Actas» en formato de tabla (una fila por acuerdo, con los datos de su acta repetidos) para analizar
+// y filtrar en Excel. Las actas sin acuerdos tienen una fila con las columnas del acuerdo vacías.
+const CAB_PLANO = ['Proyecto', 'N° reunión', 'Fecha', 'Hora', 'Duración', 'Tipo', 'Asunto', 'Código', 'Lugar', 'Estado del acta',
+  'N° asistentes', 'Asistentes', 'IT', 'Acuerdo', 'Responsable', 'Fin prog.', 'Estado del acuerdo', 'Vencido', 'Días de atraso'];
+const ANCHOS_PLANO = [26, 11, 11, 7, 9, 18, 40, 12, 18, 14, 12, 60, 5, 60, 22, 11, 16, 9, 13];
+// Hoja de asistentes (opcional, solo para importar asistentes con DNI; ya no se exporta)
 const CAB_ASIS = ['N° reunión', 'DNI', 'Nombres', 'Apellidos', 'Cargo', 'Empresa', 'Firma'];
-const CAB_ACU = ['N° reunión', 'IT', 'Acuerdo', 'Responsable', 'Fin prog.', 'Estado'];
 const fechaExcel = v => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`) : null);
 const hoyArchivo = () => fmtFecha(hoy()).replaceAll('/', '-');
 const nombreProy = p => [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
 
-async function libroActas(XLSX, filasActas, filasAsis, filasAcu) {
+function libroPlano(XLSX, filas) {
+  const hoja = XLSX.utils.aoa_to_sheet([CAB_PLANO, ...filas], { cellDates: true });
+  hoja['!cols'] = ANCHOS_PLANO.map(wch => ({ wch }));
+  // Filtros en la fila de encabezados (Excel → Datos → Filtro ya activado)
+  hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(1, filas.length), c: CAB_PLANO.length - 1 } }) };
+  for (const [ref, c] of Object.entries(hoja)) if (!ref.startsWith('!') && c.t === 'd') c.z = 'dd/mm/yyyy';
   const libro = XLSX.utils.book_new();
-  const hoja = (cab, filas, anchos) => {
-    const h = XLSX.utils.aoa_to_sheet([cab, ...filas], { cellDates: true });
-    h['!cols'] = anchos.map(wch => ({ wch }));
-    for (const [ref, c] of Object.entries(h)) if (!ref.startsWith('!') && c.t === 'd') c.z = 'dd/mm/yyyy';
-    return h;
-  };
-  XLSX.utils.book_append_sheet(libro, hoja(CAB_ACTAS, filasActas, [11, 18, 44, 14, 20, 12, 8, 10, 11]), 'Actas');
-  XLSX.utils.book_append_sheet(libro, hoja(CAB_ASIS, filasAsis, [11, 12, 22, 22, 24, 18, 8]), 'Asistentes');
-  XLSX.utils.book_append_sheet(libro, hoja(CAB_ACU, filasAcu, [11, 5, 60, 20, 12, 12]), 'Acuerdos');
+  XLSX.utils.book_append_sheet(libro, hoja, 'Actas');
   return libro;
 }
 
@@ -460,27 +461,38 @@ async function elegirActas(actas, titulo) {
 async function exportarActas(p, actas) {
   if (!actas.length) throw new Error('Aún no hay actas para exportar.');
   const XLSX = await libExcel();
-  const ids = actas.map(a => a.id), numero = Object.fromEntries(actas.map(a => [a.id, a.numero]));
+  const ids = actas.map(a => a.id);
   const [asis, acu] = await Promise.all([
-    api.list('acta_asistentes', { in: { acta_id: ids }, select: 'acta_id,dni,nombres,apellidos,cargo,empresa,firma,registrado_en', order: [['registrado_en', true]] }),
+    api.list('acta_asistentes', { in: { acta_id: ids }, select: 'acta_id,nombres,apellidos,cargo,empresa,registrado_en', order: [['registrado_en', true]] }),
     api.list('acta_acuerdos', { in: { acta_id: ids }, order: [['item', true]] }),
   ]);
-  const orden = [...actas].sort((a, b) => a.numero - b.numero);
-  const libro = await libroActas(XLSX,
-    orden.map(a => [a.numero, a.tipo, a.asunto, a.codigo, a.lugar, fechaExcel(a.fecha), a.hora ? String(a.hora).slice(0, 5) : null, a.duracion, a.estado === 'cerrada' ? 'Cerrada' : 'En registro']),
-    asis.sort((x, y) => numero[x.acta_id] - numero[y.acta_id]).map(a => [numero[a.acta_id], a.dni, a.nombres, a.apellidos, a.cargo, a.empresa, a.firma ? 'Sí' : 'No']),
-    acu.sort((x, y) => numero[x.acta_id] - numero[y.acta_id] || x.item - y.item).map(a => [numero[a.acta_id], a.item, a.acuerdo, a.responsable, fechaExcel(a.fin_programado), a.estado]));
-  XLSX.writeFile(libro, `${nombreProy(p)}_Actas de reunión_${hoyArchivo()}.xlsx`, { cellDates: true });
-  ok(`Exportadas ${actas.length} acta(s) con ${asis.length} asistente(s) y ${acu.length} acuerdo(s). Las firmas quedan en el PDF de cada acta.`);
+  const hoyIso = hoy(), proy = `${p.codigo} · ${p.nombre_corto}`;
+  const filas = [];
+  for (const a of [...actas].sort((x, y) => x.numero - y.numero)) {
+    const gente = asis.filter(x => x.acta_id === a.id);
+    const acta = [proy, a.numero, fechaExcel(a.fecha), a.hora ? String(a.hora).slice(0, 5) : null, a.duracion, a.tipo, a.asunto, a.codigo, a.lugar,
+      a.estado === 'cerrada' ? 'Cerrada' : 'En registro', gente.length,
+      gente.map(x => `${x.nombres} ${x.apellidos}${x.cargo || x.empresa ? ` (${[x.cargo, x.empresa].filter(Boolean).join(' · ')})` : ''}`).join('; ') || null];
+    const lista = acu.filter(x => x.acta_id === a.id);
+    if (!lista.length) { filas.push([...acta, null, null, null, null, null, null, null]); continue; }
+    for (const x of lista) {
+      const vencido = x.estado === 'Abierto' && x.fin_programado && x.fin_programado < hoyIso;
+      const atraso = vencido ? Math.round((new Date(hoyIso) - new Date(x.fin_programado)) / 86400000) : null;
+      filas.push([...acta, x.item, x.acuerdo, x.responsable, fechaExcel(x.fin_programado), x.estado, x.estado === 'Abierto' ? (vencido ? 'Sí' : 'No') : null, atraso]);
+    }
+  }
+  XLSX.writeFile(libroPlano(XLSX, filas), `${nombreProy(p)}_Actas de reunión_${hoyArchivo()}.xlsx`, { cellDates: true });
+  ok(`Exportadas ${actas.length} acta(s) en una hoja con filtros (${filas.length} fila(s): una por acuerdo). Las firmas quedan en el PDF de cada acta.`);
 }
 
 async function exportarFormato(p, actas) {
   const XLSX = await libExcel();
   const n = Math.max(0, ...actas.map(a => a.numero)) + 1;
-  const libro = await libroActas(XLSX, [[n, null, null, null, null, fechaExcel(hoy()), null, null, null]],
-    [[n, null, null, null, null, null, null]], [[n, 1, null, null, null, 'Abierto']]);
-  XLSX.writeFile(libro, `${nombreProy(p)}_Formato de acta de reunión N${n}.xlsx`, { cellDates: true });
-  ok('Formato descargado: complételo y cárguelo con «Importar Excel».');
+  const proy = `${p.codigo} · ${p.nombre_corto}`;
+  // Una fila por acuerdo: repita los datos del acta en cada fila (o déjelos solo en la primera)
+  const filas = [1, 2, 3].map(it => [proy, n, it === 1 ? fechaExcel(hoy()) : null, null, null, null, null, null, null, null, null, null, it, null, null, null, 'Abierto', null, null]);
+  XLSX.writeFile(libroPlano(XLSX, filas), `${nombreProy(p)}_Formato de acta de reunión N${n}.xlsx`, { cellDates: true });
+  ok('Formato descargado: complete una fila por acuerdo y cárguelo con «Importar Excel».');
 }
 
 // Lectura del Excel
@@ -517,8 +529,21 @@ async function importarActas(p, actas) {
   if (!archivo) return false;
   const XLSX = await libExcel();
   const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: true });
-  const filasActas = leerHoja(XLSX, libro, 'Actas', CAB_ACTAS), filasAsis = leerHoja(XLSX, libro, 'Asistentes', CAB_ASIS), filasAcu = leerHoja(XLSX, libro, 'Acuerdos', CAB_ACU);
-  if (!filasActas.length) throw new Error('El archivo no tiene la hoja «Actas» con el formato de «Exportar Excel».');
+  // Hoja «Actas» (una fila por acuerdo); se agrupa por N° de reunión: los datos del acta salen de la primera fila que los tenga
+  const CAB_LEER = ['N° reunión', ...CAB_PLANO.filter(c => c !== 'N° reunión'), 'Estado'];
+  const plano = leerHoja(XLSX, libro, 'Actas', CAB_LEER);
+  const filasAsis = leerHoja(XLSX, libro, 'Asistentes', CAB_ASIS);
+  const filasAcu = leerHoja(XLSX, libro, 'Acuerdos', ['N° reunión', 'IT', 'Acuerdo', 'Responsable', 'Fin prog.', 'Estado']);   // formato anterior
+  if (!plano.length) throw new Error('El archivo no tiene la hoja «Actas» con el formato de «Exportar Excel».');
+  const porNumero = new Map();
+  for (const f of plano) {
+    const n = Number(f.nreunion);
+    const g = porNumero.get(n) || {};
+    for (const c of ['tipo', 'asunto', 'codigo', 'lugar', 'fecha', 'hora', 'duracion']) if (g[c] == null && f[c] != null && String(f[c]).trim() !== '') g[c] = f[c];
+    g.nreunion = f.nreunion; porNumero.set(n, g);
+  }
+  const filasActas = [...porNumero.values()];
+  const acuerdosPlano = plano.filter(f => f.acuerdo != null && String(f.acuerdo).trim()).map(f => ({ ...f, estado: f.estadodelacuerdo ?? f.estado }));
   const nuevas = [], cambios = [], omitidas = [], errores = [];
   for (const [i, f] of filasActas.entries()) {
     const numero = Number(f.nreunion);
@@ -531,7 +556,7 @@ async function importarActas(p, actas) {
   }
   const validas = new Set([...nuevas, ...cambios].map(x => x.numero));
   const ESTADOS = Object.fromEntries(ESTADOS_ACUERDO.map(e => [k(e), e]));
-  const acuerdos = filasAcu.filter(f => validas.has(Number(f.nreunion)) && txt(f.acuerdo)).map(f => ({ numero: Number(f.nreunion), item: Number(f.it) || null,
+  const acuerdos = [...acuerdosPlano, ...filasAcu].filter(f => validas.has(Number(f.nreunion)) && txt(f.acuerdo)).map(f => ({ numero: Number(f.nreunion), item: Number(f.it) || null,
     acuerdo: txt(f.acuerdo), responsable: txt(f.responsable), fin_programado: fechaIso(f.finprog), estado: ESTADOS[k(f.estado)] || 'Abierto' }));
   const asistentes = filasAsis.filter(f => validas.has(Number(f.nreunion)) && txt(f.dni) && txt(f.nombres) && txt(f.apellidos)).map(f => ({ numero: Number(f.nreunion),
     dni: String(f.dni).replace(/\s/g, ''), nombres: txt(f.nombres), apellidos: txt(f.apellidos), cargo: txt(f.cargo), empresa: txt(f.empresa) }));
@@ -542,7 +567,7 @@ async function importarActas(p, actas) {
     · ${nuevas.length} acta(s) nueva(s)${nuevas.length ? ` (N° ${nuevas.map(x => x.numero).join(', ')})` : ''}
     · ${cambios.length} acta(s) existente(s) que se actualizan${cambios.length ? ` (N° ${cambios.map(x => x.numero).join(', ')})` : ''}
     · ${acuerdos.length} acuerdo(s): reemplazan a los de cada acta que tenga acuerdos en el archivo
-    · ${asistentes.length - malDni.length} asistente(s): se agregan los que no estén (por DNI), sin firma
+    ${asistentes.length ? `· ${asistentes.length - malDni.length} asistente(s) de la hoja «Asistentes»: se agregan los que no estén (por DNI), sin firma` : '· Los asistentes se registran con el QR del acta (la columna «Asistentes» es solo informativa)'}
     ${omitidas.length ? `· Actas cerradas que no se modifican: N° ${omitidas.join(', ')}` : ''}
     ${errores.length ? `· Observaciones: ${errores.join(' · ')}` : ''}
     ¿Continuar?`, { titulo: 'Importar actas de reunión', texto: 'Importar' });
