@@ -740,7 +740,7 @@ async function importarExcel() {
   const si = await confirmar(`Se cargará "${archivo.name}" en ${nombreSeleccion()}:
     · ${defs.length} ítems de definición (Aplica, Resp., Inicio prog., Fin prog., Comentarios)
     · ${segs.length} registros de seguimiento${reuniones.length ? ` (reunión${reuniones.length > 1 ? 'es' : ''} del ${reuniones.map(fmtFecha).join(', ')})` : ''}
-    ${nInfo ? `· ${nInfo} dato(s) de la información del proyecto (pestaña 0.Datos)` : ''}
+    ${nInfo ? `· ${nInfo} dato(s) de la ficha del proyecto (pestaña 0.Datos)` : ''}
     ${sinUsuario.size ? `· Responsables que no son usuarios de la empresa (quedan como texto): ${[...sinUsuario].join(', ')}` : ''}
     ${desconocidos.length ? `· Ítems que no existen en el formato y se omiten: ${desconocidos.join(', ')}` : ''}
     Los valores actuales de esos ítems se reemplazan. ¿Continuar?`, { titulo: 'Importar Excel', texto: 'Importar' });
@@ -1067,7 +1067,7 @@ function mensajePorDefecto(p, r, fecha, firma = store.usuario) {
     '',
     `Les comparto el Programa de Arranque del proyecto ${[p.codigo, p.nombre_completo || p.nombre_corto].filter(Boolean).join(' · ')} con el avance al ${fecha}.`,
     '',
-    // Solo los datos del proyecto que estén registrados (Información del proyecto)
+    // Solo los datos del proyecto que estén registrados (Ficha del proyecto)
     ...(() => {
       const datos = [
         p.cr && `• CR: ${p.cr}`,

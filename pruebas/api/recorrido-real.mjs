@@ -105,7 +105,7 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   if (filas !== 81) errores.push(`programa de arranque: ${filas} ítems en pantalla (se esperaban 81)`);
   const menu = await pagina.locator('nav, .lateral, aside').first().innerText().catch(() => '');
   for (const r of RETIRADAS) if (menu.includes(r)) errores.push(`menú: todavía aparece «${r}»`);
-  if (!menu.includes('Información del proyecto')) errores.push('menú: falta «Información del proyecto»');
+  if (!menu.includes('Ficha del proyecto')) errores.push('menú: falta «Ficha del proyecto»');
   // Edición: % avance (verde, reunión de seguimiento) e inicio programado (amarillo, definición)
   await pagina.locator('[data-modo="seguimiento"]').click();
   await pagina.locator('[data-item-row="1"] [data-campo="avance"]').click();

@@ -42,7 +42,7 @@ const MENU = [
 // Nivel 3 · Proyecto: el proyecto elegido en la barra (si lo administra) o el primero que administra
 const MENU_PROYECTO = [
   { id: 'proy-miembros', ico: icono('usuarios'), texto: 'Miembros del proyecto' },
-  { id: 'proy-info',     ico: icono('info'), texto: 'Información del proyecto' },
+  { id: 'proy-info',     ico: icono('info'), texto: 'Ficha del proyecto' },
 ];
 const panelPorDefecto = () => esPlataforma() ? 'p-empresas' : esAdminEmpresa() ? 'resumen' : 'proy-miembros';
 const esPanelEmpresa = id => MENU.some(m => m.id === id);
