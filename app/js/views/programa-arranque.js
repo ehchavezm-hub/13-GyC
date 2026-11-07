@@ -26,13 +26,13 @@ let estado = {};
 // del encabezado, como en Excel; doble clic lo restablece. Se recuerda por vista en este navegador.
 const COLUMNAS = {
   definicion: [
-    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'area', txt: 'Area', w: 150 },
+    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'area', txt: 'Area', w: 150 },
     { k: 'act', txt: 'Descripción de actividad', w: 340 }, { k: 'apl', txt: 'Aplica', w: 76, cls: 'def' }, { k: 'resp', txt: 'Resp.', w: 160, cls: 'def' },
     { k: 'ini', txt: 'Inicio prog.', w: 104, cls: 'def' }, { k: 'fin', txt: 'Fin prog.', w: 104, cls: 'def' },
     { k: 'com', txt: 'Comentarios', w: 220, cls: 'def' }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
   seguimiento: [
-    { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
+    { k: 'cod', txt: 'Ítem', w: 42 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
     { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'avant', txt: '% Ava. ant.', w: 92, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 150, cls: 'seg' },
     { k: 'com', txt: 'Comentarios', w: 200, cls: 'seg' }, { k: 'finr', txt: 'Fin re-prog.', w: 100, cls: 'seg' },
     { k: 'est', txt: 'Estado', w: 120 }, { k: 'mas', txt: '', w: 44, fija: true },
@@ -261,7 +261,7 @@ function pintarTabla() {
   const modo = seg ? 'seguimiento' : 'definicion';
   const cols = COLUMNAS[modo], ws = anchos(modo), ncols = cols.length;
   const colgroup = `<colgroup>${ws.map(w => `<col style="width:${w}px">`).join('')}</colgroup>`;
-  const cab = `<tr>${cols.map((c, n) => `<th class="${c.cls || ''}">${esc(c.txt)}${c.fija ? '' : `<span class="pa-resize" data-col="${n}" title="Arrastre para cambiar el ancho · doble clic: ancho original"></span>`}</th>`).join('')}</tr>`;
+  const cab = `<tr>${cols.map((c, n) => `<th class="${c.cls || ''}">${esc(c.txt)}${c.fija ? '' : `<span class="pa-resize" data-col="${n}" title="Arrastre para cambiar el ancho · doble clic: ajustar al contenido"></span>`}</th>`).join('')}</tr>`;
 
   const fila = i => {
     const c = i.item_codigo, d = det(c), r = respDe(c), k = estadoDe(c), apl = aplica(c);
@@ -321,7 +321,7 @@ function pintarTabla() {
     const f = e.target.closest('[data-ficha]');
     if (f) return abrirFicha(f.dataset.ficha);
     const td = e.target.closest('[data-editable]');
-    if (td && !td.querySelector('input,select')) editarCelda(td);
+    if (td && !td.querySelector('input,select,textarea')) editarCelda(td);
   };
 }
 
@@ -352,13 +352,39 @@ function activarRedimension(tabla, modo) {
       document.addEventListener('mousemove', mover);
       document.addEventListener('mouseup', soltar);
     });
+    // Doble clic: ajusta la columna a su contenido, como en Excel
     asa.addEventListener('dblclick', e => {
       e.stopPropagation();
-      cols[n].style.width = `${COLUMNAS[modo][n].w}px`;
+      cols[n].style.width = `${anchoAjustado(t, n)}px`;
       t.style.width = `${total()}px`;
       guardarAnchos(modo, cols.map(c => parseFloat(c.style.width)));
     });
   });
+}
+
+const ANCHO_MAX_AJUSTE = 520;
+/** Ancho para que el contenido de la columna n quepa en una línea (encabezado y filas visibles). */
+function anchoAjustado(t, n) {
+  const medidor = document.createElement('div');
+  medidor.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;white-space:nowrap;display:inline-block';
+  t.parentElement.append(medidor);
+  let max = ANCHO_MIN;
+  const celdas = [t.querySelector('thead tr')?.children[n], ...[...t.querySelectorAll('tbody tr[data-item-row]')].map(r => r.children[n])];
+  for (const c of celdas) {
+    if (!c) continue;
+    const cs = getComputedStyle(c);
+    medidor.style.font = cs.font;
+    medidor.style.textTransform = cs.textTransform;
+    medidor.style.letterSpacing = cs.letterSpacing;
+    medidor.innerHTML = c.innerHTML;
+    medidor.querySelectorAll('.pa-resize').forEach(x => x.remove());
+    medidor.querySelectorAll('.pa-desc').forEach(x => { x.style.display = 'inline'; x.style.webkitLineClamp = 'unset'; });
+    medidor.querySelectorAll('.pa-meta').forEach(x => x.remove());
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    max = Math.max(max, Math.ceil(medidor.getBoundingClientRect().width + pad + 2));
+  }
+  medidor.remove();
+  return Math.min(ANCHO_MAX_AJUSTE, max);
 }
 
 // ── Edición en la celda ───────────────────────────────────────────────────────
@@ -373,7 +399,14 @@ function control(campo, actual) {
   if (campo === 'aplica') return `<select class="cel-input">${APLICA.map(o => `<option value="${o.value}"${o.value === actual ? ' selected' : ''}>${o.label}</option>`).join('')}</select>`;
   if (campo === 'avance') return `<input type="number" class="cel-input" min="0" max="100" step="5" value="${actual ?? ''}" placeholder="%">`;
   if (/programado|reprogramado/.test(campo)) return `<input type="date" class="cel-input" value="${actual || ''}">`;
-  return `<input type="text" class="cel-input" value="${esc(actual || '')}">`;
+  // Texto (comentarios): crece hacia abajo mientras se escribe
+  return `<textarea class="cel-input cel-texto" rows="1">${esc(actual || '')}</textarea>`;
+}
+
+/** Ajusta la altura del cuadro de texto a su contenido. */
+function crecer(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = `${ta.scrollHeight + 2}px`;
 }
 
 function editarCelda(td) {
@@ -382,8 +415,13 @@ function editarCelda(td) {
   const esSeg = td.hasAttribute('data-seg');
   const actual = campo === 'aplica' ? aplicaDe(codigo) : esSeg ? segDe(codigo)?.[campo] : det(codigo)[campo];
   td.innerHTML = control(campo, actual);
-  const inp = td.querySelector('input,select');
+  const inp = td.querySelector('input,select,textarea');
   inp.focus();
+  if (inp.tagName === 'TEXTAREA') {
+    crecer(inp);
+    inp.setSelectionRange(inp.value.length, inp.value.length);
+    inp.addEventListener('input', () => crecer(inp));
+  }
   let terminado = false;
   const terminar = async guardar => {
     if (terminado) return;
@@ -399,7 +437,8 @@ function editarCelda(td) {
   inp.addEventListener('blur', () => terminar(true));
   if (inp.tagName === 'SELECT') inp.addEventListener('change', () => inp.blur());
   inp.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter') inp.blur();
+    // En el cuadro de texto, Shift+Enter hace un salto de línea; Enter guarda
+    if (ev.key === 'Enter' && !(inp.tagName === 'TEXTAREA' && ev.shiftKey)) { ev.preventDefault(); inp.blur(); }
     if (ev.key === 'Escape') terminar(false);
   });
 }
