@@ -33,7 +33,7 @@ const COLUMNAS = {
   ],
   seguimiento: [
     { k: 'cod', txt: 'Ítem', w: 56 }, { k: 'act', txt: 'Descripción de actividad', w: 300 }, { k: 'resp', txt: 'Resp.', w: 150 },
-    { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 130, cls: 'seg' },
+    { k: 'frev', txt: 'Fecha rev.', w: 96, cls: 'seg' }, { k: 'avant', txt: '% Ava. ant.', w: 92, cls: 'seg' }, { k: 'av', txt: '% Ava. Acu.', w: 150, cls: 'seg' },
     { k: 'com', txt: 'Comentarios', w: 200, cls: 'seg' }, { k: 'finr', txt: 'Fin re-prog.', w: 100, cls: 'seg' },
     { k: 'est', txt: 'Estado', w: 120 }, { k: 'mas', txt: '', w: 44, fija: true },
   ],
@@ -121,6 +121,8 @@ const item = c => estado.items.find(i => i.item_codigo === c);
 const aplicaDe = c => det(c).aplica || (item(c)?.obligatorio ? 'si' : 'na');
 const aplica = c => aplicaDe(c) === 'si';
 const segDe = (c, fecha = estado.reunion) => estado.seguimientos.find(s => s.item_codigo === c && s.fecha_revision === fecha);
+/** Último registro de una reunión ANTERIOR a la elegida (columna "% Ava. ant."). */
+const segAnterior = (c, fecha = estado.reunion) => estado.seguimientos.filter(s => s.item_codigo === c && s.fecha_revision < fecha).at(-1);
 const segVigente = (c, hasta = estado.reunion) => estado.seguimientos.filter(s => s.item_codigo === c && s.fecha_revision <= hasta).at(-1);
 const avanceDe = c => Number(segVigente(c)?.avance ?? 0);
 const finVigente = c => segVigente(c)?.fin_reprogramado || det(c).fin_programado || null;
@@ -280,11 +282,14 @@ function pintarTabla() {
     }
     const s = segDe(c), ref = !s && segVigente(c), v = s || ref || {};
     const av = v.avance != null ? Number(v.avance) : null;
+    const ant = segAnterior(c), avAnt = ant?.avance != null ? Number(ant.avance) : null;
+    const delta = s && av !== null && avAnt !== null ? Math.round((av - avAnt) * 10) / 10 : null;
     return `<tr data-item-row="${esc(c)}" class="${clase}">
       <td class="c-cod"><span class="pa-cod">${esc(c)}</span></td>${desc}${resp}
       <td class="c-fecha${ref ? ' ref' : ''}" title="${ref ? `Sin registro en esta reunión: se muestra la del ${fmtFecha(ref.fecha_revision)}` : ''}">${v.fecha_revision ? fmtFecha(v.fecha_revision) : ''}</td>
+      <td class="c-avant" title="${ant ? `Reunión del ${fmtFecha(ant.fecha_revision)}` : 'Sin reunión anterior'}">${avAnt !== null ? `${avAnt}%` : '<span class="pa-vacio">—</span>'}</td>
       <td class="c-av${ref ? ' ref' : ''}"${apl ? ed : ''} data-seg data-campo="avance">
-        ${av !== null ? `<span class="pa-av">${barra(av, av >= 100 ? 'ok' : '')}<b>${av}%</b></span>` : `<span class="pa-vacio">${apl ? '0%' : ''}</span>`}</td>
+        ${av !== null ? `<span class="pa-av">${barra(av, av >= 100 ? 'ok' : '')}<b>${av}%</b>${delta ? `<small class="pa-delta ${delta > 0 ? 'sube' : 'baja'}" title="Respecto a la reunión anterior">${delta > 0 ? '+' : ''}${delta}</small>` : ''}</span>` : `<span class="pa-vacio">${apl ? '0%' : ''}</span>`}</td>
       <td class="c-com${ref ? ' ref' : ''}"${apl ? ed : ''} data-seg data-campo="comentarios">${esc(v.comentarios || '')}</td>
       <td class="c-fecha${ref ? ' ref' : ''}${k === 'atrasado' ? ' tarde' : ''}"${apl ? ed : ''} data-seg data-campo="fin_reprogramado">${v.fin_reprogramado ? fmtFecha(v.fin_reprogramado) : ''}</td>
       <td class="c-est"><span class="pa-estado ${ESTADOS[k].cls}">${ESTADOS[k].txt}</span></td>${mas}</tr>`;
