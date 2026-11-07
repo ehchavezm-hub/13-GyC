@@ -6,7 +6,7 @@
 // Editan el acta el administrador del proyecto y las personas que él designe (redactores); los demás la consultan.
 import { api, mensajeError } from '../data/api.js';
 import { store, on, haySeleccion, proyecto, esAdminProyecto, lideresHeredados, nombreSeleccion } from '../core/store.js';
-import { esc, html, fmtFecha, hoy, libQR } from '../core/util.js';
+import { esc, html, fmtFecha, hoy, libQR, libExcel, normalizar } from '../core/util.js';
 import { ok, error as mostrarError, pedirDatos, confirmar, crearFormulario, modal } from '../ui/ui.js';
 
 const ESTADOS_ACUERDO = ['Abierto', 'Cerrado', 'Informativo'];
@@ -58,7 +58,11 @@ async function principal(el, query) {
 
   el.innerHTML = '';
   const wrap = html(`<div class="actas">
-    <div class="pagina-cab"><h1>Acta de reunión</h1><span class="proy-badge">${esc(p.codigo)} · ${esc(p.nombre_corto)}</span></div>
+    <div class="pagina-cab"><h1>Acta de reunión</h1><span class="proy-badge">${esc(p.codigo)} · ${esc(p.nombre_corto)}</span>
+      <span class="flex"></span>
+      ${admin ? '<button class="btn" data-a="importar" title="Cargar actas, asistentes y acuerdos desde Excel (formato de «Exportar Excel»)">⬆ Importar Excel</button>' : ''}
+      <button class="btn" data-a="exportar">⬇ Exportar Excel</button>
+      <button class="btn" data-a="pdf">⬇ PDF</button></div>
     <div class="pestanas pestanas-la" role="tablist">
       <button role="tab" data-p="nueva" class="${pestana === 'nueva' ? 'activo' : ''}">＋ Nueva acta</button>
       <button role="tab" data-p="log" class="${pestana === 'log' ? 'activo' : ''}">Log de reuniones (${actas.length})</button>
@@ -72,6 +76,13 @@ async function principal(el, query) {
     if (pestana === 'nueva') nuevaActa(cuerpo, p, actas, admin);
     else logActas(cuerpo, actas, asis, acu);
   };
+  // Las tres opciones sirven en las dos pestañas: en «Log» trabajan con todas las actas; en «Nueva acta», con el formato en blanco
+  const recargar = () => render(vista?.el || cuerpo.closest('#contenido') || cuerpo, { query: new URLSearchParams({ p: pestana }) });
+  // En «Log» primero se eligen las actas (todas o algunas)
+  const conSeleccion = async (titulo, fn) => { const sel = await elegirActas(actas, titulo); if (sel) await fn(p, sel); };
+  wrap.querySelector('[data-a="exportar"]').onclick = () => (pestana === 'nueva' ? exportarFormato(p, actas) : conSeleccion('Exportar a Excel', exportarActas)).catch(er => mostrarError(mensajeError(er)));
+  wrap.querySelector('[data-a="pdf"]').onclick = () => (pestana === 'nueva' ? pdfEnBlanco(p, actas) : conSeleccion('PDF del log de reuniones', pdfLog)).catch(er => mostrarError(mensajeError(er)));
+  wrap.querySelector('[data-a="importar"]')?.addEventListener('click', () => importarActas(p, actas).then(hecho => { if (hecho) recargar(); }).catch(er => mostrarError(mensajeError(er))));
   wrap.querySelector('[role="tablist"]').addEventListener('click', e => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -404,4 +415,212 @@ async function pdfActa(e) {
   const proy = [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
   const archivo = `${proy}_Acta de reunión N${acta.numero}_${fmtFecha(acta.fecha).replaceAll('/', '-')}`;
   imprimirPDF('Acta de acuerdos', cuerpo, { orientacion: 'portrait', proyectoTexto: `${p.codigo} · ${p.nombre_corto}`, archivo });
+}
+
+
+// ── Excel y PDF de la pantalla principal (Nueva acta · Log de reuniones) ──────────────────────────
+// Formato: hoja «Actas» (una fila por acta), «Asistentes» y «Acuerdos» (ambas con el N° de acta). Lo que exporta
+// «Exportar Excel» se vuelve a importar tal cual; desde «Nueva acta» se descarga el mismo formato en blanco.
+const CAB_ACTAS = ['N° reunión', 'Tipo', 'Asunto', 'Código', 'Lugar', 'Fecha', 'Hora', 'Duración', 'Estado'];
+const CAB_ASIS = ['N° reunión', 'DNI', 'Nombres', 'Apellidos', 'Cargo', 'Empresa', 'Firma'];
+const CAB_ACU = ['N° reunión', 'IT', 'Acuerdo', 'Responsable', 'Fin prog.', 'Estado'];
+const fechaExcel = v => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`) : null);
+const hoyArchivo = () => fmtFecha(hoy()).replaceAll('/', '-');
+const nombreProy = p => [p.codigo, p.nombre_corto].filter(Boolean).join(' ') || nombreSeleccion();
+
+async function libroActas(XLSX, filasActas, filasAsis, filasAcu) {
+  const libro = XLSX.utils.book_new();
+  const hoja = (cab, filas, anchos) => {
+    const h = XLSX.utils.aoa_to_sheet([cab, ...filas], { cellDates: true });
+    h['!cols'] = anchos.map(wch => ({ wch }));
+    for (const [ref, c] of Object.entries(h)) if (!ref.startsWith('!') && c.t === 'd') c.z = 'dd/mm/yyyy';
+    return h;
+  };
+  XLSX.utils.book_append_sheet(libro, hoja(CAB_ACTAS, filasActas, [11, 18, 44, 14, 20, 12, 8, 10, 11]), 'Actas');
+  XLSX.utils.book_append_sheet(libro, hoja(CAB_ASIS, filasAsis, [11, 12, 22, 22, 24, 18, 8]), 'Asistentes');
+  XLSX.utils.book_append_sheet(libro, hoja(CAB_ACU, filasAcu, [11, 5, 60, 20, 12, 12]), 'Acuerdos');
+  return libro;
+}
+
+/** Elige qué actas exportar (todas o algunas). Devuelve las elegidas o null si se cancela. */
+async function elegirActas(actas, titulo) {
+  if (!actas.length) throw new Error('Aún no hay actas en este proyecto.');
+  const orden = [...actas].sort((a, b) => b.numero - a.numero);
+  const d = await pedirDatos({
+    titulo, texto: 'Continuar', ancho: 680,
+    antes: 'Elija las actas que se incluirán.',
+    campos: [{ name: 'ids', label: 'Actas', type: 'multiselect', unaColumna: true, todos: true,
+      options: orden.map(a => ({ value: a.id, label: `N° ${a.numero} · ${fmtFecha(a.fecha)} · ${a.asunto}`, nota: a.estado === 'cerrada' ? 'Cerrada' : 'En registro' })) }],
+    valores: { ids: orden.map(a => a.id) },
+    alGuardar: async v => { if (!v.ids?.length) throw new Error('Elija al menos un acta.'); },
+  });
+  return d ? actas.filter(a => d.ids.includes(a.id)) : null;
+}
+
+async function exportarActas(p, actas) {
+  if (!actas.length) throw new Error('Aún no hay actas para exportar.');
+  const XLSX = await libExcel();
+  const ids = actas.map(a => a.id), numero = Object.fromEntries(actas.map(a => [a.id, a.numero]));
+  const [asis, acu] = await Promise.all([
+    api.list('acta_asistentes', { in: { acta_id: ids }, select: 'acta_id,dni,nombres,apellidos,cargo,empresa,firma,registrado_en', order: [['registrado_en', true]] }),
+    api.list('acta_acuerdos', { in: { acta_id: ids }, order: [['item', true]] }),
+  ]);
+  const orden = [...actas].sort((a, b) => a.numero - b.numero);
+  const libro = await libroActas(XLSX,
+    orden.map(a => [a.numero, a.tipo, a.asunto, a.codigo, a.lugar, fechaExcel(a.fecha), a.hora ? String(a.hora).slice(0, 5) : null, a.duracion, a.estado === 'cerrada' ? 'Cerrada' : 'En registro']),
+    asis.sort((x, y) => numero[x.acta_id] - numero[y.acta_id]).map(a => [numero[a.acta_id], a.dni, a.nombres, a.apellidos, a.cargo, a.empresa, a.firma ? 'Sí' : 'No']),
+    acu.sort((x, y) => numero[x.acta_id] - numero[y.acta_id] || x.item - y.item).map(a => [numero[a.acta_id], a.item, a.acuerdo, a.responsable, fechaExcel(a.fin_programado), a.estado]));
+  XLSX.writeFile(libro, `${nombreProy(p)}_Actas de reunión_${hoyArchivo()}.xlsx`, { cellDates: true });
+  ok(`Exportadas ${actas.length} acta(s) con ${asis.length} asistente(s) y ${acu.length} acuerdo(s). Las firmas quedan en el PDF de cada acta.`);
+}
+
+async function exportarFormato(p, actas) {
+  const XLSX = await libExcel();
+  const n = Math.max(0, ...actas.map(a => a.numero)) + 1;
+  const libro = await libroActas(XLSX, [[n, null, null, null, null, fechaExcel(hoy()), null, null, null]],
+    [[n, null, null, null, null, null, null]], [[n, 1, null, null, null, 'Abierto']]);
+  XLSX.writeFile(libro, `${nombreProy(p)}_Formato de acta de reunión N${n}.xlsx`, { cellDates: true });
+  ok('Formato descargado: complételo y cárguelo con «Importar Excel».');
+}
+
+// Lectura del Excel
+const k = t => normalizar(String(t ?? '')).replace(/[^a-z0-9]/g, '');
+function fechaIso(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+  const m = String(v).trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? String(v).slice(0, 10) : null;
+}
+function horaIso(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+  if (typeof v === 'number') { const min = Math.round((v % 1) * 1440); return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`; }
+  const m = String(v).trim().match(/^(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null;
+}
+function leerHoja(XLSX, libro, nombre, cab) {
+  const hoja = libro.SheetNames.find(n => k(n) === k(nombre));
+  if (!hoja) return [];
+  const filas = XLSX.utils.sheet_to_json(libro.Sheets[hoja], { header: 1, raw: true, defval: null });
+  const i0 = filas.findIndex(f => (f || []).some(v => k(v) === k(cab[0])));
+  if (i0 < 0) return [];
+  const col = Object.fromEntries(filas[i0].map((v, i) => [k(v), i]));
+  return filas.slice(i0 + 1).filter(f => (f || []).some(v => v != null && String(v).trim() !== ''))
+    .map(f => Object.fromEntries(cab.map(c => [k(c), col[k(c)] != null ? f[col[k(c)]] : null])));
+}
+const txt = v => (v == null || String(v).trim() === '' ? null : String(v).trim());
+
+async function importarActas(p, actas) {
+  const archivo = await new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.xlsx,.xlsm,.xls'; i.onchange = () => res(i.files[0]); i.click(); });
+  if (!archivo) return false;
+  const XLSX = await libExcel();
+  const libro = XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: true });
+  const filasActas = leerHoja(XLSX, libro, 'Actas', CAB_ACTAS), filasAsis = leerHoja(XLSX, libro, 'Asistentes', CAB_ASIS), filasAcu = leerHoja(XLSX, libro, 'Acuerdos', CAB_ACU);
+  if (!filasActas.length) throw new Error('El archivo no tiene la hoja «Actas» con el formato de «Exportar Excel».');
+  const nuevas = [], cambios = [], omitidas = [], errores = [];
+  for (const [i, f] of filasActas.entries()) {
+    const numero = Number(f.nreunion);
+    const datos = { tipo: txt(f.tipo), asunto: txt(f.asunto), codigo: txt(f.codigo), lugar: txt(f.lugar), fecha: fechaIso(f.fecha), hora: horaIso(f.hora), duracion: txt(f.duracion) };
+    if (!Number.isInteger(numero) || numero < 1) { errores.push(`Actas, fila ${i + 2}: N° de reunión inválido`); continue; }
+    if (!datos.asunto || !datos.fecha) { errores.push(`Actas, N° ${numero}: falta asunto o fecha`); continue; }
+    const existe = actas.find(a => a.numero === numero);
+    if (existe?.estado === 'cerrada') omitidas.push(numero);
+    else (existe ? cambios : nuevas).push({ numero, datos, existe });
+  }
+  const validas = new Set([...nuevas, ...cambios].map(x => x.numero));
+  const ESTADOS = Object.fromEntries(ESTADOS_ACUERDO.map(e => [k(e), e]));
+  const acuerdos = filasAcu.filter(f => validas.has(Number(f.nreunion)) && txt(f.acuerdo)).map(f => ({ numero: Number(f.nreunion), item: Number(f.it) || null,
+    acuerdo: txt(f.acuerdo), responsable: txt(f.responsable), fin_programado: fechaIso(f.finprog), estado: ESTADOS[k(f.estado)] || 'Abierto' }));
+  const asistentes = filasAsis.filter(f => validas.has(Number(f.nreunion)) && txt(f.dni) && txt(f.nombres) && txt(f.apellidos)).map(f => ({ numero: Number(f.nreunion),
+    dni: String(f.dni).replace(/\s/g, ''), nombres: txt(f.nombres), apellidos: txt(f.apellidos), cargo: txt(f.cargo), empresa: txt(f.empresa) }));
+  const malDni = asistentes.filter(a => !/^[A-Za-z0-9-]{4,20}$/.test(a.dni));
+  if (malDni.length) errores.push(`Asistentes con DNI inválido (se omiten): ${malDni.map(a => a.dni).join(', ')}`);
+  if (!nuevas.length && !cambios.length) throw new Error(`No hay actas que importar.${omitidas.length ? ` Las actas cerradas no se modifican (N° ${omitidas.join(', ')}).` : ''}${errores.length ? ' ' + errores.join(' · ') : ''}`);
+  const si = await confirmar(`Se cargará "${archivo.name}" en ${p.codigo} · ${p.nombre_corto}:
+    · ${nuevas.length} acta(s) nueva(s)${nuevas.length ? ` (N° ${nuevas.map(x => x.numero).join(', ')})` : ''}
+    · ${cambios.length} acta(s) existente(s) que se actualizan${cambios.length ? ` (N° ${cambios.map(x => x.numero).join(', ')})` : ''}
+    · ${acuerdos.length} acuerdo(s): reemplazan a los de cada acta que tenga acuerdos en el archivo
+    · ${asistentes.length - malDni.length} asistente(s): se agregan los que no estén (por DNI), sin firma
+    ${omitidas.length ? `· Actas cerradas que no se modifican: N° ${omitidas.join(', ')}` : ''}
+    ${errores.length ? `· Observaciones: ${errores.join(' · ')}` : ''}
+    ¿Continuar?`, { titulo: 'Importar actas de reunión', texto: 'Importar' });
+  if (!si) return false;
+  const idDe = {};
+  for (const x of cambios) { await api.update('actas', x.existe.id, x.datos); idDe[x.numero] = x.existe.id; }
+  for (const x of nuevas) { const [a] = await api.insert('actas', { proyecto_id: p.id, numero: x.numero, ...x.datos }); idDe[x.numero] = a.id; }
+  for (const n of new Set(acuerdos.map(a => a.numero))) {
+    await api.removeWhere('acta_acuerdos', { eq: { acta_id: idDe[n] } });
+    await api.insert('acta_acuerdos', acuerdos.filter(a => a.numero === n).map((a, i) => ({ acta_id: idDe[n], item: a.item || i + 1, acuerdo: a.acuerdo,
+      responsable: a.responsable, fin_programado: a.fin_programado, estado: a.estado })));
+  }
+  let agregados = 0;
+  for (const n of new Set(asistentes.map(a => a.numero))) {
+    const ya = new Set((await api.list('acta_asistentes', { eq: { acta_id: idDe[n] }, select: 'dni' })).map(a => a.dni));
+    const filas = asistentes.filter(a => a.numero === n && !ya.has(a.dni) && !malDni.includes(a)).map(({ numero: _n, ...a }) => ({ ...a, acta_id: idDe[n] }));
+    if (filas.length) { await api.insert('acta_asistentes', filas); agregados += filas.length; }
+  }
+  ok(`Importado: ${nuevas.length} acta(s) nueva(s), ${cambios.length} actualizada(s), ${acuerdos.length} acuerdo(s) y ${agregados} asistente(s).`);
+  return true;
+}
+
+// PDF del log: todas las actas con sus acuerdos
+async function pdfLog(p, actas) {
+  if (!actas.length) throw new Error('Aún no hay actas para el reporte.');
+  const { imprimirPDF } = await import('../services/pdf.js');
+  const ids = actas.map(a => a.id);
+  const [asis, acu] = await Promise.all([
+    api.list('acta_asistentes', { in: { acta_id: ids }, select: 'acta_id' }),
+    api.list('acta_acuerdos', { in: { acta_id: ids }, order: [['item', true]] }),
+  ]);
+  const orden = [...actas].sort((a, b) => a.numero - b.numero);
+  const cuenta = (lista, id, f = () => true) => lista.filter(x => x.acta_id === id && f(x)).length;
+  const cuerpo = `<style>
+      .log-pdf h2 { font-size: 10pt; color: #1F77B4; border-bottom: 1.2pt solid #003366; padding-bottom: 1.5mm; margin: 6mm 0 3mm; }
+      .log-pdf h3 { font-size: 9pt; color: #003366; margin: 5mm 0 2mm; }
+      .log-pdf table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .log-pdf th, .log-pdf td { font-size: 7.5pt; padding: 1.4mm 1.8mm; border: .5pt solid #E0E0E0; vertical-align: top; overflow-wrap: normal; }
+      .log-pdf th { text-align: left; } .log-pdf .num { text-align: right; } .log-pdf tr { break-inside: avoid; }
+    </style><div class="log-pdf">
+    <h2>Log de reuniones · ${actas.length} acta${actas.length === 1 ? '' : 's'}</h2>
+    <table><colgroup><col style="width:7%"><col style="width:11%"><col style="width:14%"><col><col style="width:11%"><col style="width:10%"><col style="width:12%"><col style="width:10%"></colgroup>
+      <tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Asunto</th><th>Código</th><th class="num">Asistentes</th><th class="num">Acuerdos abiertos</th><th>Estado</th></tr>
+      ${orden.map(a => `<tr><td>${a.numero}</td><td>${fmtFecha(a.fecha)}${a.hora ? ` ${esc(String(a.hora).slice(0, 5))}` : ''}</td><td>${esc(a.tipo || '')}</td><td>${esc(a.asunto)}</td>
+        <td>${esc(a.codigo || '')}</td><td class="num">${cuenta(asis, a.id)}</td><td class="num">${cuenta(acu, a.id, x => x.estado === 'Abierto')} / ${cuenta(acu, a.id)}</td>
+        <td>${a.estado === 'cerrada' ? 'Cerrada' : 'En registro'}</td></tr>`).join('')}</table>
+    <h2>Acuerdos por reunión</h2>
+    ${orden.map(a => { const lista = acu.filter(x => x.acta_id === a.id); return `<div class="pdf-bloque"><h3>Reunión N° ${a.numero} · ${fmtFecha(a.fecha)} · ${esc(a.asunto)}</h3>
+      ${lista.length ? `<table><colgroup><col style="width:6%"><col><col style="width:16%"><col style="width:12%"><col style="width:12%"></colgroup>
+        <tr><th>IT</th><th>Acuerdo</th><th>Resp.</th><th>Fin prog.</th><th>Estado</th></tr>
+        ${lista.map(x => `<tr><td>${x.item}</td><td>${esc(x.acuerdo)}</td><td>${esc(corto(x.responsable))}</td><td>${fmtFecha(x.fin_programado)}</td><td>${esc(x.estado)}</td></tr>`).join('')}</table>`
+        : '<p style="font-size:8pt;color:#555555">Sin acuerdos registrados.</p>'}</div>`; }).join('')}
+    </div>`;
+  imprimirPDF('Log de reuniones', cuerpo, { orientacion: 'landscape', proyectoTexto: `${p.codigo} · ${p.nombre_corto}`, archivo: `${nombreProy(p)}_Log de reuniones_${hoyArchivo()}` });
+}
+
+// PDF en blanco: el acta para llenar y firmar en papel (mismo formato que «Acta de acuerdos»)
+async function pdfEnBlanco(p, actas) {
+  const { imprimirPDF } = await import('../services/pdf.js');
+  const n = Math.max(0, ...actas.map(a => a.numero)) + 1;
+  const vacias = (cols, filas, alto) => Array.from({ length: filas }, (_, i) => `<tr>${cols.map((c, j) => `<td style="height:${alto}">${j === 0 ? i + 1 : ''}</td>`).join('')}</tr>`).join('');
+  const cuerpo = `<style>
+      .acta-pdf h2 { font-size: 10pt; color: #1F77B4; border-bottom: 1.2pt solid #003366; padding-bottom: 1.5mm; margin: 6mm 0 3mm; text-transform: uppercase; }
+      .acta-pdf table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .acta-pdf th, .acta-pdf td { font-size: 8pt; padding: 1.6mm 2mm; border: .5pt solid #AAAAAA; vertical-align: middle; }
+      .acta-pdf th { text-align: center; } .acta-pdf .datos td:nth-child(2) { font-weight: 700; }
+      .acta-pdf tr { break-inside: avoid; }
+    </style><div class="acta-pdf">
+    <h2>Datos generales</h2>
+    <table class="datos"><colgroup><col style="width:10%"><col style="width:30%"><col></colgroup>
+      ${[['Proyecto', `${p.codigo} · ${p.nombre_completo || p.nombre_corto}`], ['Tipo', ''], ['Asunto', ''], ['Código', ''], ['N° Reunión', String(n)], ['Fecha', ''], ['Hora', ''], ['Duración', ''], ['Lugar', '']]
+        .map(([c, v], i) => `<tr><td>${i + 1}</td><td>${c}</td><td style="height:7mm">${esc(v)}</td></tr>`).join('')}</table>
+    <h2>Asistentes</h2>
+    <table><colgroup><col style="width:6%"><col style="width:12%"><col style="width:16%"><col style="width:17%"><col style="width:17%"><col style="width:14%"><col style="width:18%"></colgroup>
+      <tr><th>IT</th><th>DNI</th><th>Nombres</th><th>Apellidos</th><th>Cargo</th><th>Empresa</th><th>Firma</th></tr>${vacias([1, 2, 3, 4, 5, 6, 7], 15, '11mm')}</table>
+    <h2>Acuerdos</h2>
+    <table><colgroup><col style="width:6%"><col><col style="width:14%"><col style="width:13%"><col style="width:12%"></colgroup>
+      <tr><th>IT</th><th>Acuerdo</th><th>Resp.</th><th>Fin prog.</th><th>Estado</th></tr>${vacias([1, 2, 3, 4, 5], 10, '10mm')}</table>
+    <h2>Fin de acuerdos</h2></div>`;
+  imprimirPDF('Acta de acuerdos', cuerpo, { orientacion: 'portrait', proyectoTexto: `${p.codigo} · ${p.nombre_corto}`, archivo: `${nombreProy(p)}_Acta de reunión N${n} (formato en blanco)` });
 }
