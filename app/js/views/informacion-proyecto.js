@@ -87,7 +87,10 @@ export async function render(el) {
     <div data-cabecera></div>
     <div class="ficha-grid">
       <section class="tarjeta" data-sec="generales"></section>
-      <section class="tarjeta" data-sec="plazos"></section>
+      <div class="ficha-columna">
+        <section class="tarjeta" data-sec="plazos"></section>
+        <section class="tarjeta" data-sec="presupuesto"></section>
+      </div>
     </div>
     <section class="tarjeta" data-sec="alcance"></section>
     <section class="tarjeta" data-sec="volumenes"></section>
@@ -101,7 +104,7 @@ export async function render(el) {
 }
 
 function pintarTodo(f) {
-  pintarCabecera(f); pintarGenerales(f); pintarPlazos(f); pintarAlcance(f); pintarVolumenes(f); pintarStaff(f); pintarFotos(f);
+  pintarCabecera(f); pintarGenerales(f); pintarPlazos(f); pintarPresupuesto(f); pintarAlcance(f); pintarVolumenes(f); pintarStaff(f); pintarFotos(f);
 }
 const sec = (f, s) => f.wrap.querySelector(`[data-sec="${s}"]`);
 const cab = (titulo, f, accion = 'editar', texto = '✎ Editar') => `<div class="ficha-sec-cab"><h2>${titulo}</h2><span class="flex"></span>
@@ -159,17 +162,42 @@ function pintarPlazos(f) {
   const barra = (ini, fin, cls, etiqueta) => (ini && fin ? `<div class="ficha-barra-fila"><span class="ficha-barra-lbl">${etiqueta}</span>
       <div class="ficha-barra-pista"><span class="ficha-barra ${cls}" style="left:${dias(a, ini) / total * 100}%;width:${Math.max(1.5, dias(ini, fin) / total * 100)}%"></span></div>
       <span class="ficha-barra-dias">${num(dias(ini, fin), 0)} d</span></div>` : '');
-  s.innerHTML = `${cab('Plazos', f)}
+  const progr = dias(p.inicio_contractual, p.fin_contractual), real = dias(p.inicio_real, p.fin_real);
+  const desv = progr != null && real != null ? real - progr : null;
+  const fila = (t, v) => `<dt>${esc(t)}</dt><dd>${v || '<span class="nota">—</span>'}</dd>`;
+  s.innerHTML = `${cab('Plazo', f)}
     ${barra(p.inicio_contractual, p.fin_contractual, 'prog', 'Programado') + barra(p.inicio_real, p.fin_real, 'real', 'Real')}
-    <dl class="ficha-dl">${PLAZOS.map(c => `<dt>${esc(c.label)}</dt><dd>${esc(valor(p, c)) || '<span class="nota">—</span>'}</dd>`).join('')}
-      <dt>Presupuesto inicial</dt><dd>${esc(dinero(p.presupuesto_inicial, p.moneda))}</dd>
-      <dt>Presupuesto final</dt><dd>${esc(dinero(p.presupuesto_final, p.moneda))}</dd></dl>
-    ${f.editable ? '<div class="ficha-sec-pie"><button class="btn btn-sm" data-presupuesto>✎ Editar presupuesto</button></div>' : ''}`;
-  s.querySelector('[data-editar]')?.addEventListener('click', () => editarCampos(f, 'Plazos', PLAZOS, pintarPlazos, d => {
+    <dl class="ficha-dl">${PLAZOS.map(c => fila(c.label, esc(valor(p, c)))).join('')}
+      ${fila('Duración programada', progr != null ? `${num(progr, 0)} días` : '')}
+      ${fila('Duración real', real != null ? `${num(real, 0)} días` : '')}
+      ${fila('Desviación de plazo', desv == null ? '' : desv === 0 ? 'Sin desviación'
+        : `<span class="${desv > 0 ? 'ficha-sube' : 'ficha-baja'}">${desv > 0 ? '+' : ''}${num(desv, 0)} días</span>`)}</dl>`;
+  s.querySelector('[data-editar]')?.addEventListener('click', () => editarCampos(f, 'Plazo', PLAZOS, pintarPlazos, d => {
     if (d.inicio_contractual && d.fin_contractual && d.fin_contractual < d.inicio_contractual) throw new Error('El fin programado no puede ser anterior al inicio.');
     if (d.inicio_real && d.fin_real && d.fin_real < d.inicio_real) throw new Error('El fin real no puede ser anterior al inicio real.');
   }));
-  s.querySelector('[data-presupuesto]')?.addEventListener('click', () => editarCampos(f, 'Presupuesto', PRESUPUESTO, pintarPlazos));
+}
+
+function pintarPresupuesto(f) {
+  const { p } = f, s = sec(f, 'presupuesto');
+  const hay = v => v != null && v !== '';
+  const ini = Number(p.presupuesto_inicial), fin = Number(p.presupuesto_final);
+  const dif = hay(p.presupuesto_inicial) && hay(p.presupuesto_final) ? fin - ini : null;
+  const pct = dif != null && ini > 0 ? dif / ini * 100 : null;
+  const max = Math.max(ini || 0, fin || 0) || 1;
+  const barra = (v, cls, etiqueta) => (hay(v) ? `<div class="ficha-barra-fila"><span class="ficha-barra-lbl">${etiqueta}</span>
+      <div class="ficha-barra-pista"><span class="ficha-barra ${cls}" style="left:0;width:${Math.max(1.5, Number(v) / max * 100)}%"></span></div>
+      <span class="ficha-barra-dias">${pct != null && cls === 'real' ? `${pct > 0 ? '+' : ''}${num(pct, 2)}%` : ''}</span></div>` : '');
+  const fila = (t, v) => `<dt>${esc(t)}</dt><dd>${v || '<span class="nota">—</span>'}</dd>`;
+  s.innerHTML = `${cab('Presupuesto', f)}
+    ${barra(p.presupuesto_inicial, 'prog', 'Inicial') + barra(p.presupuesto_final, 'real', 'Final')}
+    <dl class="ficha-dl">
+      ${fila('Moneda', esc(p.moneda || 'US$'))}
+      ${fila('Presupuesto inicial', hay(p.presupuesto_inicial) ? esc(dinero(p.presupuesto_inicial, p.moneda)) : '')}
+      ${fila('Presupuesto final (incluye todos los cambios)', hay(p.presupuesto_final) ? esc(dinero(p.presupuesto_final, p.moneda)) : '')}
+      ${fila('Variación', dif == null ? '' : dif === 0 ? 'Sin variación'
+        : `<span class="${dif > 0 ? 'ficha-sube' : 'ficha-baja'}">${dif > 0 ? '+' : '−'}${esc(dinero(Math.abs(dif), p.moneda))}${pct != null ? ` (${pct > 0 ? '+' : ''}${num(pct, 2)} %)` : ''}</span>`)}</dl>`;
+  s.querySelector('[data-editar]')?.addEventListener('click', () => editarCampos(f, 'Presupuesto', PRESUPUESTO, pintarPresupuesto));
 }
 
 function pintarAlcance(f) {
@@ -473,9 +501,14 @@ async function pdfFicha(f) {
       .ficha-pdf tr { break-inside: avoid; }
     </style><div class="ficha-pdf">
     <h2>Datos generales</h2><table class="dl">${filas(GENERALES)}</table>
-    <h2>Plazos y presupuesto</h2><table class="dl">${filas(PLAZOS)}
+    <div class="pdf-bloque"><h2>Plazo</h2><table class="dl">${filas(PLAZOS)}
+      <tr><th>Duración programada</th><td>${dias(p.inicio_contractual, p.fin_contractual) != null ? `${num(dias(p.inicio_contractual, p.fin_contractual), 0)} días` : '—'}</td></tr>
+      <tr><th>Duración real</th><td>${dias(p.inicio_real, p.fin_real) != null ? `${num(dias(p.inicio_real, p.fin_real), 0)} días` : '—'}</td></tr></table></div>
+    <div class="pdf-bloque"><h2>Presupuesto</h2><table class="dl">
+      <tr><th>Moneda</th><td>${esc(p.moneda || 'US$')}</td></tr>
       <tr><th>Presupuesto inicial</th><td>${esc(dinero(p.presupuesto_inicial, p.moneda))}</td></tr>
-      <tr><th>Presupuesto final (incluye todos los cambios)</th><td>${esc(dinero(p.presupuesto_final, p.moneda))}</td></tr></table>
+      <tr><th>Presupuesto final (incluye todos los cambios)</th><td>${esc(dinero(p.presupuesto_final, p.moneda))}</td></tr>
+      ${p.presupuesto_inicial != null && p.presupuesto_final != null && Number(p.presupuesto_inicial) > 0 ? `<tr><th>Variación</th><td>${esc(dinero(Number(p.presupuesto_final) - Number(p.presupuesto_inicial), p.moneda))} (${num((Number(p.presupuesto_final) - Number(p.presupuesto_inicial)) / Number(p.presupuesto_inicial) * 100, 2)} %)</td></tr>` : ''}</table></div>
     ${p.alcance ? `<h2>Alcance del proyecto</h2><div class="alcance">${esc(p.alcance)}</div>` : ''}
     ${f.volumenes.length ? `<div class="pdf-bloque"><h2>Volúmenes principales</h2><table><colgroup><col><col style="width:16%"><col style="width:16%"><col style="width:14%"></colgroup>
       <tr><th>Descripción</th><th class="num">Cantidad inicial</th><th class="num">Cantidad final</th><th>Unidad</th></tr>
