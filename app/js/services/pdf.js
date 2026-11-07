@@ -329,7 +329,7 @@ export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = '
       image: { type: 'jpeg', quality: calidad },
       html2canvas: { scale: escala, useCORS: true, backgroundColor: '#FFFFFF', scrollX: 0, scrollY: 0, x: 0, windowWidth: utilPx, width: utilPx },
       jsPDF: { unit: 'mm', format: papel.toLowerCase(), orientation: orientacion },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h3', '.pa-pdf-graf', '.kpi'] },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h3', '.pa-pdf-graf', '.kpi', 'figure', '.pdf-bloque'] },   // .pdf-bloque: título junto a su tabla
     }));
     const pdf = await marco.contentWindow.html2pdf().set(opciones).from(hoja).toPdf().get('pdf');
     const n = pdf.internal.getNumberOfPages();

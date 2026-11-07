@@ -37,6 +37,7 @@ before(async () => {
     await c.query(migracion('039_paleta_tableau.sql'));
     await c.query(migracion('040_aplica.sql'));
     await c.query(migracion('041_actas.sql'));
+    await c.query(migracion('042_ficha_proyecto.sql'));
   } finally { c.release(); }
   usarVerificador(async token => token);
   usarEjecutor(async (sentencias, uid) => {
@@ -430,4 +431,20 @@ test('actas de reunión: administrador, redactores designados, registro por QR y
   assert.equal((await pedir('POST', persona)).estado, 409);
   // N° de reunión único por proyecto
   await assert.rejects(A.insert('actas', { proyecto_id: p.id, numero: 1, asunto: 'Otra', fecha: lunes }), /duplicate|único|unique/i);
+});
+
+test('ficha del proyecto: campos nuevos, volúmenes, organización y fotos', async () => {
+  const [p] = await A.insert('proyectos', { codigo: 'FICHA', nombre_corto: 'Ficha', estado: 'activo' });
+  const act = await A.update('proyectos', p.id, { cebe: '31280', cliente: 'Anglo American Quellaveco SA', inicio_real: '2024-02-10', fin_real: '2025-03-29',
+    presupuesto_inicial: 16515284.401, presupuesto_final: 16513290.615, moneda: 'US$', alcance: 'Línea 1\nLínea 2' });
+  assert.equal(act.cebe, '31280'); assert.equal(act.fin_real, '2025-03-29'); assert.equal(Number(act.presupuesto_inicial), 16515284.4);
+  const vol = await A.insert('proyecto_volumenes', [{ proyecto_id: p.id, orden: 1, descripcion: 'Torre de Captación N°05', es_titulo: true },
+    { proyecto_id: p.id, orden: 2, descripcion: 'Concreto armado', cantidad_inicial: 1757, cantidad_final: 1757, unidad: 'm3' }]);
+  assert.equal(vol.length, 2);
+  const [st] = await A.insert('proyecto_staff', { proyecto_id: p.id, orden: 1, cargo: 'Gerente de Proyecto', principal: 'Freddy Amarante', reemplazo: 'Rolando De La Cruz' });
+  assert.equal(st.reemplazo, 'Rolando De La Cruz');
+  await A.insert('proyecto_fotos', { proyecto_id: p.id, imagen: 'data:image/jpeg;base64,/9j/4AAQ' });
+  await assert.rejects(A.insert('proyecto_fotos', { proyecto_id: p.id, imagen: 'data:text/html;base64,PHNjcmlwdD4=' }), /check/i);
+  await A.removeWhere('proyecto_volumenes', { eq: { proyecto_id: p.id } });
+  assert.equal((await A.list('proyecto_volumenes', { eq: { proyecto_id: p.id } })).length, 0);
 });

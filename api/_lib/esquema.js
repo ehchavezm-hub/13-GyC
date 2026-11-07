@@ -29,6 +29,7 @@ const MIGRACION_DE = {
   programa_arranque: '037_programa_arranque_r1.sql', programa_arranque_items: '037_programa_arranque_r1.sql',
   programa_arranque_detalle: '037_programa_arranque_r1.sql', programa_arranque_seguimiento: '037_programa_arranque_r1.sql',
   cuentas_preasignadas: '036_cuentas_preasignadas.sql',
+  proyecto_volumenes: '042_ficha_proyecto.sql', proyecto_staff: '042_ficha_proyecto.sql', proyecto_fotos: '042_ficha_proyecto.sql',
 };
 
 export async function columnas(tabla) {

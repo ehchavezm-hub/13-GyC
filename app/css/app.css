@@ -830,3 +830,48 @@ body.pa-redimensionando, body.pa-redimensionando * { cursor: col-resize !importa
 .acta-acuerdos textarea { resize: none; min-height: 38px; overflow: hidden; line-height: 1.4; }
 .acta-acuerdos tr.guardado td { background: color-mix(in srgb, var(--verde) 12%, #FFFFFF); transition: background .3s; }
 .acta-log td.acta-acc { white-space: nowrap; text-align: right; }
+
+/* Ficha del proyecto (pestaña "0.Ficha del proyecto" del CR-PG-SGP-01-F1 r1) */
+.ficha .tarjeta { margin-bottom: 14px; }
+.ficha-sec-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ficha-sec-cab h2 { margin: 0; }
+.ficha-sec-pie { display: flex; gap: 8px; margin-top: 10px; }
+.ficha-hero { border-left: 4px solid var(--naranja); padding: 16px 18px; }
+.ficha-hero-nombre { font-family: var(--fuente-titulos); font-size: 20px; font-weight: 700; color: var(--navy); line-height: 1.3; }
+.ficha-hero-meta { margin-top: 4px; color: var(--texto-2); font-size: 14px; }
+.ficha-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ficha-chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; color: var(--azul);
+  background: color-mix(in srgb, var(--azul) 12%, #FFFFFF); }
+.ficha-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.ficha-kpi { background: var(--surface); border: 1px solid var(--borde); border-top: 3px solid var(--azul); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.ficha-kpi.navy { border-top-color: var(--navy); } .ficha-kpi.verde { border-top-color: var(--verde); }
+.ficha-kpi.rojo { border-top-color: var(--peligro); } .ficha-kpi.naranja { border-top-color: var(--naranja); }
+.ficha-kpi-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-2); font-weight: 700; }
+.ficha-kpi-val { font-size: 19px; font-weight: 800; color: var(--navy); }
+.ficha-kpi-pie { font-size: 12px; color: var(--texto-2); }
+.ficha-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; }
+.ficha-grid > .tarjeta { margin-bottom: 14px; }
+.ficha-dl { display: grid; grid-template-columns: minmax(150px, 38%) 1fr; margin: 0; }
+.ficha-dl dt { font-size: 12.5px; font-weight: 700; color: var(--texto-2); padding: 7px 10px 7px 0; border-bottom: 1px solid var(--borde); }
+.ficha-dl dd { margin: 0; padding: 7px 0; border-bottom: 1px solid var(--borde); font-size: 14px; }
+.ficha-barra-fila { display: grid; grid-template-columns: 86px 1fr 52px; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ficha-barra-lbl { font-size: 12px; font-weight: 700; color: var(--texto-2); }
+.ficha-barra-pista { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); }
+.ficha-barra { position: absolute; top: 0; height: 100%; border-radius: 6px; }
+.ficha-barra.prog { background: var(--azul); } .ficha-barra.real { background: var(--naranja); }
+.ficha-barra-dias { font-size: 12px; color: var(--texto-2); text-align: right; }
+.ficha-alcance { white-space: pre-wrap; line-height: 1.55; font-size: 14px; }
+.ficha-alcance.plegado { max-height: 12.5em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.btn-link { border: 0; background: none; color: var(--azul-d3); font: inherit; font-weight: 600; cursor: pointer; padding: 6px 0; }
+.ficha-tabla .num { text-align: right; white-space: nowrap; }
+.ficha-tabla tr.ficha-subtitulo td { font-weight: 700; color: var(--navy); background: color-mix(in srgb, var(--azul) 12%, #FFFFFF); }
+.ficha-tabla.editando input { width: 100%; font: inherit; padding: 5px 7px; border: 1px solid var(--borde); border-radius: 6px; background: #FFFFFF; }
+.ficha-tabla.editando input[type=number] { text-align: right; }
+.ficha-tabla .ficha-acc { white-space: nowrap; text-align: right; }
+.ficha-sube { color: var(--naranja); font-weight: 700; } .ficha-baja { color: var(--verde); font-weight: 700; }
+.ficha-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.ficha-fotos figure { margin: 0; cursor: zoom-in; }
+.ficha-fotos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 1px solid var(--borde); display: block; }
+.ficha-fotos figcaption { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--texto-2); margin-top: 4px; min-height: 22px; }
+.ficha-foto-acc { margin-left: auto; white-space: nowrap; }
+.ficha-foto-grande { width: 100%; max-height: 78vh; object-fit: contain; display: block; }
