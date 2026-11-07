@@ -321,6 +321,10 @@ function pintarAcuerdos(caja, e) {
       : `<tr><td>${a.item}</td><td>${esc(a.acuerdo)}</td><td>${esc(a.responsable || '')}</td><td>${fmtFecha(a.fin_programado)}</td><td>${esc(a.estado)}</td></tr>`).join('')}</tbody></table></div>`
       : '<p class="nota">Aún no hay acuerdos registrados.</p>'}`;
   if (!e.editable) return;
+  // La caja del acuerdo crece con el texto (sin barra de desplazamiento interna)
+  const crecer = ta => { ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight + 2}px`; };
+  caja.querySelectorAll('textarea[data-c="acuerdo"]').forEach(crecer);
+  caja.querySelector('tbody')?.addEventListener('input', ev => { if (ev.target.matches('textarea')) crecer(ev.target); });
   caja.querySelector('[data-nuevo]').onclick = async () => {
     try {
       const item = Math.max(0, ...e.acuerdos.map(a => a.item)) + 1;
