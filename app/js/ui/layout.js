@@ -11,7 +11,7 @@ export const NAV = [
   { grupo: 'Administración' },
   { ruta: '/admin', ico: icono('engranaje'), texto: 'Administración', si: tieneAdministracion, prefijo: '/admin' },
   { grupo: 'Documentos' },
-  { ruta: '/informacion-proyecto', ico: icono('info'), texto: 'Información del proyecto', si: esStaff },
+  { ruta: '/informacion-proyecto', ico: icono('info'), texto: 'Ficha del proyecto', si: esStaff },
   { ruta: '/programa-arranque', ico: icono('checklist'), texto: 'Programa de arranque', si: esStaff },
   { ruta: '/lookahead', ico: icono('objetivo'), texto: 'Plan de gestión', si: esStaff },
   { ruta: '/backlog', ico: icono('capas'), texto: 'Plan de construcción', si: esStaff },

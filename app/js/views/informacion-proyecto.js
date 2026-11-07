@@ -1,4 +1,4 @@
-// Información del proyecto (CR-PG-SGP-01-F1, pestaña "0.Datos"): CR, nombre, plazo contractual e inicios
+// Ficha del proyecto (antes «Información del proyecto») (CR-PG-SGP-01-F1, pestaña "0.Datos"): CR, nombre, plazo contractual e inicios
 // de movilización y de construcción. La usa el Programa de Arranque como cabecera.
 import { api, mensajeError } from '../data/api.js';
 import { store, esGestor, haySeleccion, proyecto, misProyectos, emit } from '../core/store.js';
@@ -40,7 +40,7 @@ export async function render(el) {
     .filter(Boolean).join(' › ');
 
   const wrap = html(`<div>
-    <div class="pagina-cab"><h1>Información del proyecto</h1><span class="proy-badge">${esc(p.codigo)} · ${esc(p.nombre_corto)}</span>
+    <div class="pagina-cab"><h1>Ficha del proyecto</h1><span class="proy-badge">${esc(p.codigo)} · ${esc(p.nombre_corto)}</span>
       <span class="flex"></span>${editable ? '<button class="btn btn-primario" data-a="editar">✎ Editar</button>' : ''}</div>
     <div class="tarjeta info-proy">
       <table class="info-proy-tabla"><tbody>
@@ -53,7 +53,7 @@ export async function render(el) {
   el.append(wrap);
 
   wrap.querySelector('[data-a="editar"]')?.addEventListener('click', () => pedirDatos({
-    titulo: 'Información del proyecto',
+    titulo: 'Ficha del proyecto',
     campos: CAMPOS_INFO.map(c => ({ ...c, required: c.name === 'nombre_completo' })),
     valores: { ...p, nombre_completo: p.nombre_completo || p.nombre_corto },
     alGuardar: async d => {
@@ -64,7 +64,7 @@ export async function render(el) {
       try { actualizado = await api.update('proyectos', p.id, d); } catch (e) { throw new Error(mensajeError(e)); }
       Object.assign(p, actualizado);
       emit('catalogo');
-      ok('Información del proyecto guardada.');
+      ok('Ficha del proyecto guardada.');
       render(el);
     },
   }));
