@@ -777,3 +777,8 @@ body.pa-redimensionando, body.pa-redimensionando * { cursor: col-resize !importa
 .pa-kpi-avance .pa-bar.grande > span { border-radius: 0; }
 .pa-buscar { width: 130px; flex: 0 1 130px; }
 .pa-barra select { max-width: 170px; }
+/* % Ava. ant. (reunión anterior) y variación respecto a ella */
+.pa-tabla .c-avant { color: var(--texto-2); font-weight: 600; font-size: 12.5px; }
+.pa-delta { font-size: 11px; font-weight: 700; margin-left: 2px; }
+.pa-delta.sube { color: var(--verde); }
+.pa-delta.baja { color: var(--peligro); }
