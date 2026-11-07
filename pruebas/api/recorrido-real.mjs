@@ -120,6 +120,12 @@ for (const css of ['css/app.css', 'css/admin.css', 'vendor/tabulator.min.css']) 
   if (!(await pagina.locator('.pa-ficha .pa-linea li').count())) errores.push('programa de arranque: la ficha no muestra el historial');
   await pagina.keyboard.press('Escape');
   await pagina.locator('[data-modo="definicion"]').click();
+  // Aplica (lista Si / N/A): el ítem opcional 6 parte en N/A y se cambia a Si
+  if (!(await pagina.locator('[data-item-row="6"] [data-campo="aplica"]').innerText()).includes('N/A')) errores.push('programa de arranque: el ítem opcional 6 no parte en N/A');
+  await pagina.locator('[data-item-row="6"] [data-campo="aplica"]').click();
+  await pagina.locator('[data-item-row="6"] [data-campo="aplica"] select').selectOption('si');
+  await pagina.waitForTimeout(800);
+  if (!(await pagina.locator('[data-item-row="6"] [data-campo="aplica"]').innerText()).includes('Si')) errores.push('programa de arranque: Aplica no se guardó');
   await pagina.locator('[data-item-row="1a"] [data-campo="inicio_programado"]').click();
   await pagina.locator('[data-item-row="1a"] [data-campo="inicio_programado"] input').fill('2026-07-06');
   await pagina.keyboard.press('Enter');
