@@ -12,6 +12,7 @@ import { usarEjecutor, configurarTipos } from '../../api/_lib/db.js';
 import { usarVerificador, usarClerk } from '../../api/_lib/auth.js';
 import datos from '../../api/datos.js';
 import admin from '../../api/admin-usuarios.js';
+import correo, { usarEnvio } from '../../api/enviar-correo.js';
 import { semillaEmpresa } from '../../app/js/data/catalogos.js';
 
 configurarTipos(pg.types);   // igual que en producción (api/_lib/db.js)
@@ -337,4 +338,30 @@ test('nuevo usuario con cuenta ya existente en Clerk: se usa esa cuenta y aparec
     const n = await A.adminUsuarios('crear', { email: 'nuevo@cosapi.com.pe', nombre: 'Nuevo', rol: 'lider', clave: 'Temporal123' });
     assert.equal(n.ya_tenia_cuenta, false);
   } finally { usarClerk(null); }
+});
+
+test('enviar por correo: solo administradores del proyecto y solo a sus miembros', async () => {
+  const enviados = [];
+  usarEnvio(async c => { enviados.push(c); return { id: 'x' }; });
+  try {
+    const [p] = await A.insert('proyectos', { codigo: 'MAIL', nombre_corto: 'Correo', estado: 'activo' });
+    await A.insert('proyecto_lideres', [{ proyecto_id: p.id, usuario_id: 'user_lider', rol: 'miembro' }]);
+    const base = { proyecto_id: p.id, asunto: 'Avance\nX', resumen: { fecha: '07/11/2026', avance: 10, lista_atrasados: [{ codigo: '1', descripcion: '<b>x</b>' }] }, pdf: 'JVBERi0xLjQ=' };
+    // Un miembro sin correo registrado no puede recibir
+    await assert.rejects(llamar(correo, 'user_admin', { ...base, para: ['user_lider'] }), /con correo registrado/);
+    await pool.query(`UPDATE profiles SET email = 'lider@ejemplo.com' WHERE id = 'user_lider'`);
+    const r = await llamar(correo, 'user_admin', { ...base, para: ['user_lider'], copia: true });
+    assert.equal(r.enviados, 1);
+    assert.deepEqual(enviados[0].to, ['lider@ejemplo.com']);
+    assert.equal(enviados[0].subject, 'Avance X');                              // sin saltos de línea
+    assert.ok(enviados[0].html.includes('&lt;b&gt;x&lt;/b&gt;'));               // el texto se escapa
+    assert.equal(enviados[0].attachments[0].content, 'JVBERi0xLjQ=');
+    // Un usuario que no es miembro del proyecto no puede ser destinatario
+    await assert.rejects(llamar(correo, 'user_admin', { ...base, para: ['user_dueno'] }), /miembros activos del proyecto/);
+    // Quien no administra el proyecto no envía
+    await assert.rejects(llamar(correo, 'user_lider', { ...base, para: ['user_lider'] }), /administradores del proyecto/);
+    // Sin servicio configurado, el aviso es claro
+    usarEnvio(null);
+    await assert.rejects(llamar(correo, 'user_admin', { ...base, para: ['user_lider'] }), /RESEND_API_KEY/);
+  } finally { usarEnvio(null); }
 });

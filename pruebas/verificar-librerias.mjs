@@ -16,6 +16,7 @@ const NPM = {
   'tabulator.min.js': ['tabulator-tables', '6.6.1', 'dist/js/tabulator.min.js'],
   'tabulator.min.css': ['tabulator-tables', '6.6.1', 'dist/css/tabulator.min.css'],
   'chart.umd.min.js': ['chart.js', '4.5.1', 'dist/chart.umd.min.js'],
+  'html2pdf.bundle.min.js': ['html2pdf.js', '0.10.2', 'dist/html2pdf.bundle.min.js'],
 };
 const SHEETJS = ['0.20.3', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'];
 const SENTRY = ['@sentry/browser@11.9.0', 'esbuild@0.25.0'];

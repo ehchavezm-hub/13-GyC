@@ -32,6 +32,10 @@ if (process.argv.includes('--reiniciar')) {
 }
 
 usarVerificador(async token => token);
+// Correos: no se envían; se guardan para revisarlos en /__correos (solo servidor local)
+const { usarEnvio } = await import('../../api/enviar-correo.js');
+const correos = [];
+usarEnvio(async correo => { correos.push(correo); return { id: `local-${correos.length}` }; });
 usarEjecutor(async (sentencias, uid) => {
   const c = await pool.connect();
   try {
@@ -48,12 +52,17 @@ const funciones = {
   '/api/datos': (await import('../../api/datos.js')).default,
   '/api/admin-usuarios': (await import('../../api/admin-usuarios.js')).default,
   '/api/health': (await import('../../api/health.js')).default,
+  '/api/enviar-correo': (await import('../../api/enviar-correo.js')).default,
 };
 const TIPOS = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/__correos') {
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify(correos.map(c => ({ ...c, html: c.html.length, attachments: c.attachments.map(x => ({ filename: x.filename, content_id: x.content_id, bytes: x.content.length, inicio: Buffer.from(x.content.slice(0, 12), 'base64').toString('latin1') })) }))));
+  }
   const fn = funciones[url.pathname];
   if (fn) {
     // Igual que Vercel: req.body ya parseado y res.status().json()

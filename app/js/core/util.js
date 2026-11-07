@@ -163,3 +163,4 @@ function cargarScript(src, global) {
 export const libExcel = () => cargarScript('vendor/xlsx.full.min.js', 'XLSX');
 /** Librería de gráficos (Chart.js): Tablero. */
 export const libGraficos = () => cargarScript('vendor/chart.umd.min.js', 'Chart');
+export const libPDF = () => cargarScript('vendor/html2pdf.bundle.min.js', 'html2pdf');

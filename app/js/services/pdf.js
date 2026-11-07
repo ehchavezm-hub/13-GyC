@@ -244,3 +244,45 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
   }
 <\/script></body></html>`;
 }
+
+/**
+ * Genera el informe como ARCHIVO PDF (para adjuntarlo a un correo), con el mismo documento de la vista preliminar.
+ * Devuelve el contenido en base64 (sin el prefijo "data:").
+ */
+export async function generarArchivoPDF(titulo, contenidoHTML, { orientacion = 'landscape', papel = 'A4', proyectoTexto, archivo } = {}) {
+  const [a, b] = PAPELES[papel] || PAPELES.A4;
+  const [anchoMm] = orientacion === 'landscape' ? [b, a] : [a, b];
+  const marco = document.createElement('iframe');
+  marco.setAttribute('aria-hidden', 'true');
+  marco.style.cssText = `position:fixed;left:-20000px;top:0;width:${Math.ceil(anchoMm * 96 / 25.4) + 40}px;height:1200px;border:0;visibility:hidden`;
+  document.body.append(marco);
+  try {
+    await new Promise(ok => { marco.onload = ok; marco.srcdoc = documentoReporte(titulo, contenidoHTML, { papel, orientacion, proyectoTexto, archivo }); });
+    const doc = marco.contentDocument;
+    // La librería se carga dentro del documento del informe (sus estilos no se mezclan con los del aplicativo)
+    await new Promise((ok, mal) => {
+      const s = doc.createElement('script');
+      s.src = new URL('vendor/html2pdf.bundle.min.js', location.href).href;
+      s.onload = ok; s.onerror = () => mal(new Error('No se pudo cargar el generador de PDF.'));
+      doc.head.append(s);
+    });
+    await new Promise(r => setTimeout(r, 150));
+    doc.querySelector('.pie')?.remove();
+    const hoja = doc.getElementById('hoja');
+    // La hoja mide exactamente el ancho útil (papel menos márgenes del PDF): nada se corta a la derecha
+    Object.assign(hoja.style, { zoom: 1, width: `${anchoMm - 16}mm`, minHeight: '0', padding: '0', margin: '0', boxShadow: 'none', boxSizing: 'border-box' });
+    // Las opciones se crean dentro del marco: la librería valida con "instanceof Array" de su propio documento
+    const opciones = marco.contentWindow.JSON.parse(JSON.stringify({
+      margin: [8, 8, 10, 8],
+      // Resolución suficiente para leer texto de 7,5 pt sin que el adjunto pase de ~1–1,5 MB
+      image: { type: 'jpeg', quality: 0.82 },
+      html2canvas: { scale: 1.6, useCORS: true, backgroundColor: '#FFFFFF' },
+      jsPDF: { unit: 'mm', format: papel.toLowerCase(), orientation: orientacion },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'h3', '.pa-pdf-graf', '.kpi'] },
+    }));
+    const uri = await marco.contentWindow.html2pdf().set(opciones).from(hoja).outputPdf('datauristring');
+    return String(uri).split(',')[1];
+  } finally {
+    marco.remove();
+  }
+}
