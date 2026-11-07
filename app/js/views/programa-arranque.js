@@ -35,7 +35,7 @@ export async function render(el) {
 
   const wrap = html(`<div class="pa">
     <div class="pa-cab">
-      <div><h1>Programa de Arranque</h1><div class="pa-sub">${esc(nombreSeleccion())} · Formato CR-PG-SGP-01-F1</div></div>
+      <h1>Programa de Arranque</h1><span class="proy-badge">${esc(nombreSeleccion())}</span>
       <span class="flex"></span>
       <button class="btn" data-a="excel" title="Descargar en el formato CR-PG-SGP-01-F1">⬇ Excel</button>
     </div>
@@ -130,11 +130,10 @@ function pintarKpis() {
   const obligOk = oblig.filter(i => avanceDe(i.item_codigo) >= 100).length;
   const sinResp = items.filter(i => !(det(i.item_codigo).responsable_id || det(i.item_codigo).responsable)).length;
   const tarjeta = (clave, valor, etiqueta, pie, cls = '') => `<button class="pa-kpi ${cls}${filtros.estado === clave ? ' activo' : ''}" data-kpi="${clave}" title="Filtrar la tabla">
-    <span class="pa-kpi-val">${valor}</span><span class="pa-kpi-lbl">${etiqueta}</span>${pie ? `<span class="pa-kpi-pie">${pie}</span>` : ''}</button>`;
+    <span class="pa-kpi-linea"><span class="pa-kpi-val">${valor}</span><span class="pa-kpi-lbl">${etiqueta}</span></span>${pie ? `<span class="pa-kpi-pie">${pie}</span>` : ''}</button>`;
   const caja = estado.wrap.querySelector('[data-kpis]');
   caja.innerHTML = `<div class="pa-kpi pa-kpi-avance">
-      <span class="pa-kpi-lbl">Avance del programa · al ${fmtFecha(estado.reunion)}</span>
-      <span class="pa-kpi-val">${promedio}%</span>${barra(promedio, 'grande')}
+      <span class="pa-kpi-linea"><span class="pa-kpi-val">${promedio}%</span><span class="pa-kpi-lbl">Avance del programa · al ${fmtFecha(estado.reunion)}</span></span>${barra(promedio, 'grande')}
       <span class="pa-kpi-pie">${cuenta('terminado')} de ${items.length} ítems terminados · obligatorios ${obligOk}/${oblig.length}</span></div>
     ${tarjeta('atrasado', cuenta('atrasado'), 'Atrasados', 'fin vencido sin 100%', 'mal')}
     ${tarjeta('por_vencer', cuenta('por_vencer'), 'Por vencer', `próximos ${PROXIMOS_DIAS} días`, 'aviso')}
