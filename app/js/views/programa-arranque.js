@@ -12,7 +12,7 @@ import { api, mensajeError } from '../data/api.js';
 import { store, haySeleccion, nombreSeleccion, proyecto, lideresHeredados, nombre, esAdminProyecto } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, sumarDias, libExcel, libGraficos, normalizar } from '../core/util.js';
 import { icono } from '../ui/iconos.js';
-import { error as mostrarError, pedirDatos, ok, confirmar, modal } from '../ui/ui.js';
+import { error as mostrarError, pedirDatos, ok, toast, confirmar } from '../ui/ui.js';
 import { CAMPOS_INFO, puedeEditarProyecto } from './informacion-proyecto.js';
 
 const DIAS_FIN_POR_DEFECTO = 90;   // como el formato: Fin prog. = Inicio prog. + 90
@@ -901,8 +901,8 @@ async function enviarPorCorreo() {
   const fecha = estado.reuniones.length ? informe.fecha : fmtFecha(hoy());
   const d = await pedirDatos({
     titulo: 'Enviar por correo', texto: 'Preparar correo', ancho: 640,
-    antes: `Se preparará un <b>borrador para Outlook</b> desde el remitente elegido; quedará en sus Enviados. Incluye el resumen con la
-      Curva S y el programa completo en PDF. Solo se puede enviar a los miembros del proyecto.`,
+    antes: `Se preparará el correo en <b>Outlook</b>, desde el remitente elegido (debe abrirse en el Outlook de esa cuenta); quedará
+      en sus Enviados. Incluye el resumen, la Curva S y el programa completo en PDF. Solo a miembros del proyecto.`,
     campos: [
       { name: 'de', label: 'Enviar desde', type: 'select', required: true, full: true,
         options: remitentes.map(u => ({ value: u.id, label: `${u.nombre} · ${u.email} · ${adminsProy.includes(u) ? 'Administrador del proyecto' : u.rol === 'superadmin' ? 'Super administrador' : 'Usted'}` })) },
@@ -910,13 +910,25 @@ async function enviarPorCorreo() {
         options: miembros.map(m => ({ value: m.id, label: m.nombre, nota: m.email })), value: miembros.filter(m => m.id !== store.usuario.id).map(m => m.id) },
       { name: 'asunto', label: 'Asunto', required: true, full: true },
       { name: 'mensaje', label: 'Mensaje', type: 'textarea', rows: 12 },
+      { name: 'abrir', label: 'Abrir en', type: 'select', full: true, options: [
+        { value: 'escritorio', label: 'Outlook de escritorio: borrador con el PDF y la Curva S adjuntos' },
+        { value: 'web', label: 'Outlook en el navegador (Microsoft 365): el PDF se descarga para adjuntarlo' }] },
     ],
-    valores: { de: remDefecto, asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`,
+    valores: { abrir: preferenciaOutlook(), de: remDefecto, asunto: `Programa de Arranque · ${p.codigo || ''} ${p.nombre_corto || ''} · avance al ${fecha}`,
       mensaje: mensajePorDefecto(p, informe.resumen, fecha, remitentes.find(u => u.id === remDefecto)) },
-    alGuardar: async v => { if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.'); },
+    alGuardar: async v => {
+      if (!v.para?.length) throw new Error('Elija al menos un miembro del proyecto.');
+      try { localStorage.setItem('gyc-correo-outlook', v.abrir); } catch { /* sin almacenamiento */ }
+      // Outlook web se abre aquí, en el mismo clic (el navegador bloquea ventanas abiertas después de una espera)
+      if (v.abrir === 'web') {
+        const para = miembros.filter(m => v.para.includes(m.id)).map(m => m.email);
+        const q = new URLSearchParams({ to: para.join(';'), subject: v.asunto || '', body: v.mensaje || '' });
+        window.open(`https://outlook.office.com/mail/deeplink/compose?${q.toString().replace(/\+/g, '%20')}`, '_blank', 'noopener');
+      }
+    },
   });
   if (!d) return;
-  ok('Preparando el correo y el PDF…');
+  ok(d.abrir === 'web' ? 'Outlook web abierto; preparando el PDF para adjuntar…' : 'Preparando el borrador para Outlook…');
   const { generarArchivoPDF } = await import('../services/pdf.js');
   const archivo = nombreArchivoPA(informe.fecha);
   const pdf = await generarArchivoPDF('Programa de Arranque', informe.cuerpo, { orientacion: 'landscape', proyectoTexto: nombreSeleccion(), archivo });
@@ -932,29 +944,19 @@ async function enviarPorCorreo() {
       { nombre: `${archivo}.pdf`, tipo: 'application/pdf', base64: pdf },
     ],
   });
-  const pdfBlob = () => new Blob([Uint8Array.from(atob(pdf), c => c.charCodeAt(0))], { type: 'application/pdf' });
-  // Dos formas, según el Outlook de quien envía (sin configuración ni intervención de TI en ninguna)
-  modal({
-    titulo: 'Correo listo para enviar', ancho: 600,
-    cuerpo: `<p style="margin:0 0 10px">Para <b>${r.para.length}</b> miembro${r.para.length === 1 ? '' : 's'} del proyecto, desde
-        <b>${esc(r.nombre)} (${esc(r.de)})</b>.${r.de !== store.usuario.email ? ` Ábralo en el Outlook de esa cuenta.` : ''} Elija según el Outlook que use:</p>
-      <div class="pa-correo-opcion"><b>Outlook de escritorio</b>
-        <p>Se descarga un borrador. Ábralo (doble clic): se abre en Outlook con los destinatarios, el mensaje, la Curva S y el PDF adjunto. Revise y pulse <b>Enviar</b>.</p>
-        <button class="btn btn-primario" data-eml>⬇ Descargar borrador para Outlook</button></div>
-      <div class="pa-correo-opcion"><b>Outlook en el navegador (Microsoft 365)</b>
-        <p>Se abre un correo nuevo en Outlook web con los destinatarios, el asunto y el mensaje, y se descarga el PDF:
-          arrástrelo al correo y pulse <b>Enviar</b>. Debe tener abierta la sesión de ${esc(r.de)}.</p>
-        <button class="btn" data-web>↗ Abrir en Outlook web</button></div>`,
-    botones: [{ texto: 'Cerrar' }],
-  }).cuerpo.addEventListener('click', e => {
-    if (e.target.closest('[data-eml]')) descargar(`${archivo}.eml`, new Blob([eml], { type: 'message/rfc822' }));
-    if (e.target.closest('[data-web]')) {
-      descargar(`${archivo}.pdf`, pdfBlob());
-      const q = new URLSearchParams({ to: r.para.join(';'), subject: r.asunto, body: d.mensaje || '' });
-      if (r.cc.length) q.set('cc', r.cc.join(';'));
-      window.open(`https://outlook.office.com/mail/deeplink/compose?${q.toString().replace(/\+/g, '%20')}`, '_blank', 'noopener');
-    }
-  });
+  if (d.abrir === 'web') {
+    descargar(`${archivo}.pdf`, new Blob([Uint8Array.from(atob(pdf), c => c.charCodeAt(0))], { type: 'application/pdf' }));
+    toast('PDF descargado: arrástrelo al correo de Outlook web y pulse Enviar.', 'ok', 10000);
+  } else {
+    descargar(`${archivo}.eml`, new Blob([eml], { type: 'message/rfc822' }));
+    toast('Borrador descargado: ábralo y se abrirá en Outlook listo para Enviar. Para que se abra solo la próxima vez: en Chrome, '
+      + 'flecha de la descarga → «Abrir siempre archivos de este tipo».', 'ok', 15000);
+  }
+}
+
+/** Outlook preferido para enviar (se recuerda la última elección) */
+function preferenciaOutlook() {
+  try { return localStorage.getItem('gyc-correo-outlook') === 'web' ? 'web' : 'escritorio'; } catch { return 'escritorio'; }
 }
 
 /** Descarga un archivo generado en el navegador */

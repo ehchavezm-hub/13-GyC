@@ -812,6 +812,3 @@ body.pa-redimensionando, body.pa-redimensionando * { cursor: col-resize !importa
 .pa-curva-tabla th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-2); padding: 6px 12px; border-bottom: 2px solid var(--borde); }
 .pa-curva-tabla td { padding: 6px 12px; border-bottom: 1px solid var(--gris-borde); }
 
-/* Correo listo para enviar (q51): una tarjeta por cada Outlook */
-.pa-correo-opcion { border: 1px solid var(--borde); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
-.pa-correo-opcion p { margin: 4px 0 8px; font-size: 13px; color: var(--texto-2); }
