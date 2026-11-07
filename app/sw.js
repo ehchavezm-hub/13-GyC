@@ -1,6 +1,6 @@
 // Service worker de GyC: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
 // La versión cambia en cada publicación para que los usuarios reciban la última versión.
-const VERSION = 'gyc-v1.5.0';
+const VERSION = 'gyc-v1.5.1';
 const ARCHIVOS = [
   './',
   'index.html',
@@ -80,12 +80,21 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== location.origin && !url.hostname.endsWith('fonts.googleapis.com') && !url.hostname.endsWith('fonts.gstatic.com')) return;
-  // Aplicativo, librerías y fuentes: primero la caché de esta versión. Antes el código se confirmaba con el servidor
-  // en cada carga (unas 45 consultas encadenadas a GitHub Pages). Cada publicación cambia VERSION: el navegador
-  // detecta el sw.js nuevo, descarga todo de nuevo en segundo plano y la página se actualiza sola (main.js).
+  // Aplicativo: primero la red (siempre la versión publicada; antes, con "primero la caché", el navegador seguía
+  // mostrando la versión anterior después de cada publicación). La caché queda como respaldo sin conexión.
+  // Librerías (vendor/) y fuentes no cambian entre publicaciones: primero la caché.
   const navegar = req.mode === 'navigate';
-  e.respondWith(caches.open(VERSION).then(c => c.match(req, { ignoreSearch: navegar }).then(r => r || fetch(req).then(res => {
-    if (res.ok) c.put(req, res.clone());
+  const fija = url.pathname.includes('/vendor/') || url.hostname.endsWith('fonts.gstatic.com') || url.hostname.endsWith('fonts.googleapis.com');
+  if (fija) {
+    e.respondWith(caches.open(VERSION).then(c => c.match(req).then(r => r || fetch(req).then(res => {
+      if (res.ok) c.put(req, res.clone());
+      return res;
+    }))));
+    return;
+  }
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
+    if (res.ok) { const copia = res.clone(); caches.open(VERSION).then(c => c.put(req, copia)); }
     return res;
-  }))).catch(() => navegar ? caches.match('index.html') : Response.error()));
+  }).catch(() => caches.open(VERSION).then(c => c.match(req, { ignoreSearch: navegar }))
+    .then(r => r || (navegar ? caches.match('index.html') : Response.error()))));
 });
